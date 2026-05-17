@@ -2,7 +2,7 @@
   "name": "FinanÇezas",
   "short_name": "FinanÇezas",
   "description": "Controle financeiro pessoal",
-  "start_url": "/",
+  "start_url": "/financezas/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#6366f1",
@@ -21,5 +21,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "scope": "/financezas/"
 }
