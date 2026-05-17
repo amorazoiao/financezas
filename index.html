@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>FinanÇezas v8.5</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FinanÇezas">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- TELAS DA APLICAÇÃO                                           -->
+<!-- ============================================================ -->
+<div class="app-container" id="appContainer">
+
+  <!-- TELA: DASHBOARD -->
+  <div class="screen active" id="screen-dashboard">
+    <div class="hero-balance-card">
+      <div class="hero-balance-top">
+        <div>
+          <div class="hero-label">Saldo Atual</div>
+          <div class="hero-value" id="hero-balance">R$ 0,00</div>
+        </div>
+        <div class="hero-icon">💰</div>
+      </div>
+      <div class="hero-balance-footer">
+        <div class="hero-mini-card"><span>Receitas</span><strong id="hero-receitas">R$ 0,00</strong></div>
+        <div class="hero-mini-card"><span>Despesas</span><strong id="hero-despesas">R$ 0,00</strong></div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="chart-container">
+        <div class="chart-title">
+          <h3>📊 Distribuição</h3>
+          <div class="chart-toggle">
+            <button id="btn-despesas" onclick="toggleChart('despesa')">Despesas</button>
+            <button id="btn-receitas" onclick="toggleChart('receita')">Receitas</button>
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="chart"></canvas>
+          <div class="chart-center-text" id="chart-center-text" style="display:none;"></div>
+        </div>
+        <div id="chart-empty" style="display:none; padding:var(--padding-lg);">Sem dados</div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title"><h3>📈 Evolução Patrimonial (últimos 12 meses)</h3></div>
+        <canvas id="evolution-chart" style="max-height:220px; width:100%;"></canvas>
+      </div>
+    </div>
+
+    <div class="analysis-card">
+      <div style="font-weight:bold; margin-bottom:var(--margin-md);">📈 Análise do Mês</div>
+      <div class="analysis-stats">
+        <div class="analysis-item"><div class="analysis-value" id="savings">0%</div><div class="analysis-label">Poupança</div></div>
+        <div class="analysis-item"><div class="analysis-value" id="essencial">0%</div><div class="analysis-label">Essenciais</div></div>
+        <div class="analysis-item"><div class="analysis-value" id="superfluo">0%</div><div class="analysis-label">Supérfluos</div></div>
+        <div class="analysis-item"><div class="analysis-value" id="uso-cartao">0%</div><div class="analysis-label">Limite Cartão</div></div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="metric-card">
+        <div class="metric-value" id="media-gastos-diarios">R$ 0,00</div>
+        <div class="metric-label">Média gastos/dia (mês)</div>
+        <div class="metric-trend" id="trend-gastos"></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="maior-categoria">-</div>
+        <div class="metric-label">Categoria que mais gasta</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="dias-zerados">0</div>
+        <div class="metric-label">Dias sem gastos</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="projecao-mes">R$ 0,00</div>
+        <div class="metric-label">Projeção fim do mês</div>
+      </div>
+    </div>
+
+    <div id="smart-alerts"></div>
+
+    <div class="filter-bar">
+      <select id="filter-type" class="filter-select" onchange="renderHistorico()">
+        <option value="all">📋 Todas transações</option>
+        <option value="receita">💰 Receitas</option>
+        <option value="despesa">💸 Despesas</option>
+      </select>
+      <select id="filter-cat" class="filter-select" onchange="renderHistorico()">
+        <option value="all">📁 Todas categorias</option>
+      </select>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">📋 Últimos Lançamentos</div>
+      <div class="section-link" onclick="goToScreen('extrato')">Ver todos no Extrato →</div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- TELA: EXTRATO -->
+  <div class="screen" id="screen-extrato">
+    <div style="background:white; border-radius:var(--radius-xl); padding:var(--padding-lg); box-shadow:var(--shadow-md);">
+      <div class="extrato-nav-card">
+        <div class="extrato-mes-atual-card">
+          <div class="extrato-mes-atual-label">MÊS SELECIONADO</div>
+          <div class="extrato-mes-atual-valor" id="current-month-display">Maio 2026</div>
+        </div>
+        <div class="extrato-nav-buttons">
+          <button class="extrato-nav-arrow" onclick="navegarMes(-1)"><span>◀</span> Anterior</button>
+          <button class="extrato-btn-mes-atual" onclick="setMesAtual()">📅 Mês atual</button>
+          <button class="extrato-nav-arrow" onclick="navegarMes(1)">Próximo <span>▶</span></button>
+        </div>
+      </div>
+      <div id="extrato-resumo"></div>
+      <div class="section-header">
+        <div class="section-title">📋 Lançamentos do Mês</div>
+        <div class="section-link" onclick="exportExtrato()">📊 Exportar Excel</div>
+      </div>
+      <div id="extrato-list"></div>
+      <div style="display:flex; gap:var(--gap-md); margin-top:var(--margin-xl); flex-wrap:wrap;">
+        <button class="btn btn-outline"  onclick="exportExtrato()" style="flex:1;">📊 Exportar Excel</button>
+        <button class="pdf-export-btn"   onclick="exportPDF()"     style="flex:1;">📄 Exportar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELA: CARTÕES -->
+  <div class="screen" id="screen-cartoes">
+    <div class="cartoes-container">
+      <div class="cartoes-header">
+        <h2>💳 Meus Cartões</h2>
+        <button class="btn btn-primary" onclick="abrirModalCartao()" style="padding:var(--padding-md) var(--padding-xl); border-radius:var(--radius-full); width:auto;">+ Novo Cartão</button>
+      </div>
+      <div class="cartoes-carrossel" id="cartoes-carrossel"></div>
+      <div class="cartao-detail-section" id="cartao-detail-section" style="display:none;"></div>
+      <div id="nenhum-cartao-selecionado">
+        <div class="empty-state-modern">
+          <div class="icon">💳</div>
+          <div class="title">Selecione um cartão</div>
+          <div class="subtitle">Toque em um cartão acima para ver os detalhes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELA: ORÇAMENTO -->
+  <div class="screen" id="screen-orcamento">
+    <div class="orcamento-card">
+      <div class="orcamento-header">
+        <h3>🎯 Orçamento por Categoria</h3>
+        <select id="orcamento-mes-select" class="orcamento-select" onchange="carregarOrcamentos()"></select>
+      </div>
+      <div id="orcamentos-list"></div>
+      <button class="btn-add-orcamento" onclick="abrirModalOrcamento()">+ Adicionar orçamento para categoria</button>
+    </div>
+  </div>
+
+  <!-- TELA: RECORRENTES -->
+  <div class="screen" id="screen-recorrentes">
+    <div style="background:white; border-radius:var(--radius-3xl); padding:var(--padding-lg); box-shadow:var(--shadow-md);">
+      <div class="previsao-card">
+        <div style="font-weight:700; font-size:var(--font-2xl);">🔮 Previsão Próximo Mês</div>
+        <div class="previsao-grid">
+          <div class="previsao-item"><div class="label">Receitas Fixas</div><div class="value" id="previsao-receitas">R$ 0,00</div></div>
+          <div class="previsao-item"><div class="label">Despesas Fixas</div><div class="value" id="previsao-despesas">R$ 0,00</div></div>
+          <div class="previsao-item"><div class="label">Compromissos 💳</div><div class="value" id="previsao-compromissos">R$ 0,00</div></div>
+          <div class="previsao-item"><div class="label">Saldo Previsto</div><div class="value" id="previsao-saldo">R$ 0,00</div></div>
+        </div>
+      </div>
+      <div class="section-header">
+        <div class="section-title">🔄 Minhas Recorrências</div>
+        <div style="display:flex; gap:var(--gap-sm);">
+          <div class="section-link" onclick="abrirModalTransacaoComRecorrencia('receita')" style="background:var(--success-light); color:var(--success);">💰 + Receita</div>
+          <div class="section-link" onclick="abrirModalTransacaoComRecorrencia('despesa')">💸 + Despesa</div>
+        </div>
+      </div>
+      <div id="recorrencias-list"></div>
+      <div class="section-header">
+        <div class="section-title">📱 Central de Assinaturas</div>
+        <div style="font-size:var(--font-sm); color:var(--gray-400);" id="total-assinaturas">Total: R$ 0,00</div>
+      </div>
+      <div id="assinaturas-list"></div>
+    </div>
+  </div>
+
+  <!-- TELA: RESERVA -->
+  <div class="screen" id="screen-reserva">
+    <div style="background:white; border-radius:var(--radius-xl); padding:var(--padding-lg); box-shadow:var(--shadow-md);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--margin-lg); flex-wrap:wrap;">
+        <h3 style="color:var(--gray-800);">🛡️ Reserva de Emergência</h3>
+        <button class="btn btn-primary" onclick="abrirModalMeta()" style="padding:var(--padding-sm) var(--padding-lg);">+ Nova Meta</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:var(--gap-md); margin-bottom:var(--margin-lg);">
+        <div style="background:linear-gradient(135deg,var(--primary),#7c3aed); color:white; border-radius:var(--radius-lg); padding:var(--padding-md); text-align:center;">
+          <div style="font-size:var(--font-sm);">Total Reservado</div>
+          <div style="font-size:var(--font-3xl); font-weight:bold;" id="total-reservado">R$ 0,00</div>
+        </div>
+        <div style="background:linear-gradient(135deg,var(--success),#16a34a); color:white; border-radius:var(--radius-lg); padding:var(--padding-md); text-align:center;">
+          <div style="font-size:var(--font-sm);">Meta Total</div>
+          <div style="font-size:var(--font-3xl); font-weight:bold;" id="meta-total">R$ 0,00</div>
+        </div>
+      </div>
+      <div style="background:var(--gray-100); border-radius:var(--radius-lg); padding:var(--padding-md); margin-bottom:var(--margin-lg);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:var(--margin-sm);">
+          <span>Progresso</span><span id="progress-percent">0%</span>
+        </div>
+        <div style="height:8px; background:var(--gray-200); border-radius:var(--radius-full);">
+          <div id="progress-reserva-fill" style="width:0%; height:100%; background:var(--primary); border-radius:var(--radius-full);"></div>
+        </div>
+        <div style="margin-top:var(--margin-md); padding:var(--padding-md); background:var(--success-light); border-radius:var(--radius-lg); font-size:var(--font-sm);">
+          💡 Gastos essenciais mensais: <strong id="gastos-essenciais-mensais">R$ 0,00</strong>
+        </div>
+      </div>
+      <h4 style="margin-bottom:var(--margin-md);">🎯 Minhas Metas</h4>
+      <div id="metas-reserva-list"></div>
+      <div style="display:flex; gap:var(--gap-sm); margin-top:var(--margin-lg);">
+        <button class="btn btn-success" style="flex:1;" onclick="adicionarReservaRapida()">➕ Adicionar</button>
+        <button class="btn btn-danger"  style="flex:1;" onclick="sacarReserva()">➖ Sacar</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-container -->
+
+<!-- ============================================================ -->
+<!-- MENU INFERIOR FIXO                                           -->
+<!-- ============================================================ -->
+<div class="bottom-nav">
+  <button class="nav-item" data-screen="dashboard"><span>📊</span><span>Dashboard</span></button>
+  <button class="nav-item" data-screen="extrato"><span>📋</span><span>Extrato</span></button>
+  <div class="nav-center" id="centralButton"><div class="nav-center-circle">+</div><small>Novo</small></div>
+  <button class="nav-item" data-screen="cartoes"><span>💳</span><span>Cartões</span></button>
+  <button class="nav-item" id="moreButton"><span>☰</span><span>Mais</span></button>
+</div>
+
+<!-- ============================================================ -->
+<!-- BOTTOM SHEETS                                                 -->
+<!-- ============================================================ -->
+<div class="sheet-overlay" id="newSheet">
+  <div class="sheet-content">
+    <div class="sheet-header">➕ Novo Lançamento</div>
+    <div class="sheet-grid">
+      <div class="sheet-option" onclick="handleNewTransaction('receita')"><span class="icon">💰</span><div class="title">Receita</div><div class="sub">Dinheiro entrando</div></div>
+      <div class="sheet-option" onclick="handleNewTransaction('despesa')"><span class="icon">💸</span><div class="title">Despesa</div><div class="sub">Pagamento à vista</div></div>
+      <div class="sheet-option" onclick="handleNewTransaction('cartao')"><span class="icon">💳</span><div class="title">Compra no Cartão</div><div class="sub">Parcelado ou à vista</div></div>
+      <div class="sheet-option" onclick="openRecurrentSheet()"><span class="icon">🔄</span><div class="title">Recorrente</div><div class="sub">Criar recorrência</div></div>
+    </div>
+    <div style="margin-top:20px; text-align:center;">
+      <button class="btn btn-outline" onclick="closeSheet('newSheet')" style="width:auto; padding:8px 24px;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="recurrentSheet">
+  <div class="sheet-content">
+    <div class="sheet-header">🔄 Criar Recorrência</div>
+    <div class="sheet-grid">
+      <div class="sheet-option" onclick="createRecurrent('receita')"><span class="icon">💰</span><div class="title">Receita Recorrente</div><div class="sub">Salário, freelas, etc.</div></div>
+      <div class="sheet-option" onclick="createRecurrent('despesa')"><span class="icon">💸</span><div class="title">Despesa Recorrente</div><div class="sub">Assinaturas, contas fixas</div></div>
+    </div>
+    <div style="margin-top:20px; text-align:center;">
+      <button class="btn btn-outline" onclick="closeSheet('recurrentSheet')" style="width:auto; padding:8px 24px;">Voltar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="moreSheet">
+  <div class="sheet-content">
+    <div class="sheet-header">☰ Mais Opções</div>
+    <div class="sheet-grid">
+      <div class="sheet-option" onclick="goToScreen('orcamento');closeSheet('moreSheet')"><span class="icon">🎯</span><div class="title">Orçamento</div><div class="sub">Controle de gastos</div></div>
+      <div class="sheet-option" onclick="goToScreen('recorrentes');closeSheet('moreSheet')"><span class="icon">🔄</span><div class="title">Recorrentes</div><div class="sub">Assinaturas e receitas fixas</div></div>
+      <div class="sheet-option" onclick="goToScreen('reserva');closeSheet('moreSheet')"><span class="icon">🛡️</span><div class="title">Reserva</div><div class="sub">Metas e emergência</div></div>
+      <div class="sheet-option" onclick="openSettings();closeSheet('moreSheet')"><span class="icon">⚙️</span><div class="title">Configurações</div><div class="sub">Categorias, backup, tema</div></div>
+    </div>
+    <div style="margin-top:20px; text-align:center;">
+      <button class="btn btn-outline" onclick="closeSheet('moreSheet')" style="width:auto; padding:8px 24px;">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAIS                                                        -->
+<!-- ============================================================ -->
+
+<!-- Modal: Transação (receita / despesa) -->
+<div id="modal-transacao" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-titulo">Nova Transação</h3>
+      <button class="modal-close" onclick="fecharModal('modal-transacao')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="transacao-id">
+      <div class="form-group"><label class="form-label">Data</label><input type="date" id="transacao-data" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Descrição</label><input type="text" id="transacao-desc" class="form-input" placeholder="Ex: Salário"></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select id="transacao-cat" class="form-select"></select></div>
+      <div class="form-group">
+        <label class="form-label">Valor (R$)</label>
+        <div class="money-wrapper"><span>R$</span><input type="text" id="transacao-valor" class="money-input" placeholder="0,00"></div>
+      </div>
+      <div class="recorrencia-toggle" onclick="toggleRecorrenciaCheckbox()">
+        <span id="recorrencia-icon">🔄</span>
+        <span>Transação Recorrente</span>
+        <input type="checkbox" id="recorrencia-ativa" style="margin-left:auto;" onclick="event.stopPropagation(); toggleRecorrenciaConfig()">
+      </div>
+      <div class="recorrencia-config" id="recorrencia-config">
+        <div class="form-group">
+          <label>Frequência</label>
+          <div class="recorrencia-chips" id="frequencia-chips">
+            <button class="recorrencia-chip active" data-freq="mensal"    onclick="selecionarFrequencia(this)">📅 Mensal</button>
+            <button class="recorrencia-chip"        data-freq="quinzenal" onclick="selecionarFrequencia(this)">🔄 Quinzenal</button>
+            <button class="recorrencia-chip"        data-freq="semanal"   onclick="selecionarFrequencia(this)">📆 Semanal</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Forma de Pagamento</label>
+          <select id="recorrencia-forma-pagamento" class="form-select" onchange="toggleCartaoRecorrencia()">
+            <option value="debito">🏦 Débito / Pix</option>
+            <option value="cartao">💳 Cartão de Crédito</option>
+          </select>
+        </div>
+        <div class="form-group" id="recorrencia-cartao-group" style="display:none;">
+          <label>Cartão</label>
+          <select id="recorrencia-cartao" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label id="label-dia-recorrencia">Dia do mês (1-31)</label>
+          <input type="number" id="recorrencia-dia" class="form-input" min="1" max="31">
+        </div>
+        <div class="gerar-hoje-toggle" id="gerar-hoje-toggle" style="display:none;">
+          <input type="checkbox" id="gerar-primeira-hoje" checked>
+          <span>Gerar primeira transação hoje</span>
+        </div>
+        <div class="form-group">
+          <label>Data final (opcional)</label>
+          <input type="date" id="recorrencia-fim" class="form-input">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-transacao')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarTransacao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Cartão -->
+<div id="modal-cartao" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>💳 Cartão</h3><button class="modal-close" onclick="fecharModal('modal-cartao')">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="cartao-editar-id">
+      <div class="form-group"><label>Nome</label><input type="text" id="cartao-nome" class="form-input" placeholder="Ex: Nubank"></div>
+      <div class="form-group">
+        <label>Limite (R$)</label>
+        <div class="money-wrapper"><span>R$</span><input type="text" id="cartao-limite" class="money-input" placeholder="0,00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Fechamento</label><input type="number" id="cartao-fechamento" class="form-input" min="1" max="31"></div>
+        <div class="form-group"><label>Vencimento</label><input type="number" id="cartao-vencimento" class="form-input" min="1" max="31"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-cartao')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCartao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Compra Parcelada -->
+<div id="modal-compra" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>💳 Compra Parcelada</h3><button class="modal-close" onclick="fecharModal('modal-compra')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Cartão</label><select id="compra-cartao" class="form-select"></select></div>
+      <div class="form-group"><label>Descrição</label><input type="text" id="compra-desc" class="form-input"></div>
+      <div class="form-group">
+        <label>Valor Total (R$)</label>
+        <div class="money-wrapper"><span>R$</span><input type="text" id="compra-valor" class="money-input" placeholder="0,00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Parcelas</label>
+          <select id="compra-parcelas" class="form-select">
+            <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option>
+            <option value="4">4x</option><option value="5">5x</option><option value="6">6x</option>
+            <option value="7">7x</option><option value="8">8x</option><option value="9">9x</option>
+            <option value="10">10x</option><option value="11">11x</option><option value="12">12x</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Data</label><input type="date" id="compra-data" class="form-input"></div>
+      </div>
+      <div class="form-group"><label>Categoria</label><select id="compra-categoria" class="form-select"></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-compra')">Cancelar</button>
+      <button class="btn btn-warning" onclick="salvarCompra()">Lançar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Pagamento de Fatura -->
+<div id="modal-pagamento" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>💳 Pagamento</h3><button class="modal-close" onclick="fecharModal('modal-pagamento')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Valor (R$)</label>
+        <div class="money-wrapper"><span>R$</span><input type="text" id="pagamento-valor" class="money-input" placeholder="0,00"></div>
+      </div>
+      <div id="pagamento-info" style="background:var(--gray-100); padding:var(--padding-md); border-radius:var(--radius-lg); font-size:var(--font-md);"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-pagamento')">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarPagamento()">Pagar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Configurações -->
+<div id="modal-config" class="modal-overlay">
+  <div class="modal config-modal">
+    <div class="modal-header config-header">
+      <div>
+        <h3 style="color:white; font-size:var(--font-3xl);">⚙️ Configurações</h3>
+        <p style="font-size:var(--font-md); opacity:0.8; margin-top:2px;">Personalize sua experiência</p>
+      </div>
+      <button class="modal-close" onclick="fecharModal('modal-config')" style="color:white; font-size:var(--font-4xl);">&times;</button>
+    </div>
+    <div class="config-tabs">
+      <button class="config-tab active" onclick="switchConfigTab('categorias')">🏷️ Categorias</button>
+      <button class="config-tab"        onclick="switchConfigTab('dados')">💾 Dados</button>
+      <button class="config-tab"        onclick="switchConfigTab('sobre')">ℹ️ Sobre</button>
+    </div>
+
+    <!-- Aba: Categorias -->
+    <div id="config-tab-categorias" class="config-content active">
+      <div class="categorias-search-wrapper">
+        <input type="text" id="categorias-search" class="categorias-search" placeholder="Buscar categorias..." oninput="filtrarCategorias()">
+        <span class="search-icon">🔍</span>
+      </div>
+      <button class="add-categoria-card" id="btn-add-categoria" onclick="toggleAddCategoriaForm()">➕ Adicionar Nova Categoria</button>
+      <div class="add-categoria-form" id="add-categoria-form">
+        <div class="add-categoria-form-title">📝 Nova Categoria</div>
+        <div style="display:flex; gap:var(--gap-sm); flex-wrap:wrap;">
+          <input type="text" id="nova-categoria-nome" class="form-input" placeholder="Nome" style="flex:2;">
+          <select id="nova-categoria-tipo" class="form-select" style="flex:1;">
+            <option value="despesa">💸 Despesa</option>
+            <option value="receita">💰 Receita</option>
+          </select>
+          <button class="btn btn-primary" onclick="adicionarCategoria()" style="width:auto; padding:0 var(--padding-lg); border-radius:var(--radius-md);">➕</button>
+        </div>
+      </div>
+      <div class="categorias-section">
+        <div class="categorias-section-header">
+          <span class="categorias-section-title">💰 Receitas</span>
+          <span class="categorias-section-count" id="count-receitas">0</span>
+        </div>
+        <div class="categorias-list" id="categorias-receitas-list"></div>
+      </div>
+      <div class="categorias-section">
+        <div class="categorias-section-header">
+          <span class="categorias-section-title">💸 Despesas</span>
+          <span class="categorias-section-count" id="count-despesas">0</span>
+        </div>
+        <div class="categorias-list" id="categorias-despesas-list"></div>
+      </div>
+      <div class="info-note" style="margin-top:var(--margin-lg);">
+        💡 Categorias <strong>padrão</strong> podem ser renomeadas. Categorias <strong>personalizadas</strong> são destacadas em roxo.
+      </div>
+    </div>
+
+    <!-- Aba: Dados -->
+    <div id="config-tab-dados" class="config-content">
+      <div class="dados-section">
+        <h4>📤 Exportar Dados</h4>
+        <p>Salve seus dados em diferentes formatos</p>
+        <div class="dados-grid">
+          <button class="data-action-card" onclick="exportExcel()"><div class="icon">📊</div><div class="title">Excel</div><div class="subtitle">Planilha .xlsx</div></button>
+          <button class="data-action-card" onclick="exportPDFGeral()"><div class="icon">📄</div><div class="title">PDF</div><div class="subtitle">Documento .pdf</div></button>
+        </div>
+      </div>
+      <div class="dados-section">
+        <h4>💾 Backup e Restauração</h4>
+        <p>Proteja seus dados</p>
+        <div class="dados-grid">
+          <button class="data-action-card" onclick="backup()"><div class="icon">📥</div><div class="title">Criar Backup</div><div class="subtitle">Download JSON</div></button>
+          <button class="data-action-card" onclick="restore()"><div class="icon">📤</div><div class="title">Restaurar Backup</div><div class="subtitle">Carregar JSON</div></button>
+        </div>
+      </div>
+      <div class="dados-section">
+        <h4>🌙 Tema</h4>
+        <button class="btn btn-outline" onclick="toggleDarkMode()" style="width:auto;">Alternar Modo Escuro</button>
+      </div>
+      <div class="danger-zone">
+        <h4>⚠️ Zona de Perigo</h4>
+        <p>Ações irreversíveis</p>
+        <button class="btn-danger-zone" onclick="resetAll()">🗑️ Resetar Todos os Dados</button>
+      </div>
+    </div>
+
+    <!-- Aba: Sobre -->
+    <div id="config-tab-sobre" class="config-content">
+      <div class="sobre-header">
+        <div class="sobre-icon">💰</div>
+        <div class="sobre-title">FinanÇezas</div>
+        <div class="sobre-version">Versão 8.5</div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-item"><span>🛡️</span> Pagar Fatura com proteções</div>
+        <div class="feature-item"><span>📅</span> Recorrência com dias 29,30,31</div>
+        <div class="feature-item"><span>💳</span> Cartões com edição/exclusão</div>
+        <div class="feature-item"><span>📊</span> Dashboard avançado</div>
+        <div class="feature-item"><span>🎯</span> Orçamento por categoria</div>
+        <div class="feature-item"><span>📈</span> Evolução patrimonial</div>
+        <div class="feature-item"><span>🎨</span> Tema claro/escuro</div>
+        <div class="feature-item"><span>🔄</span> Recorrências corrigidas</div>
+        <div class="feature-item"><span>📐</span> Design System com tokens</div>
+      </div>
+      <div style="text-align:center; font-size:var(--font-sm); color:var(--gray-400); padding:var(--padding-lg); margin-top:var(--margin-lg);">
+        Feito com ❤️ • Versão 8.5
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-config')" style="border-radius:var(--radius-md);">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Meta de Reserva -->
+<div id="modal-meta" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>🎯 Nova Meta</h3><button class="modal-close" onclick="fecharModal('modal-meta')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Nome</label><input type="text" id="meta-nome" class="form-input"></div>
+      <div class="form-group"><label>Objetivo (R$)</label><input type="number" id="meta-valor" class="form-input" step="0.01"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-meta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarMeta()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Orçamento -->
+<div id="modal-orcamento" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>🎯 Novo Orçamento</h3><button class="modal-close" onclick="fecharModal('modal-orcamento')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Categoria</label><select id="orcamento-categoria" class="form-select"></select></div>
+      <div class="form-group">
+        <label>Limite (R$)</label>
+        <div class="money-wrapper"><span>R$</span><input type="text" id="orcamento-limite" class="money-input" placeholder="0,00"></div>
+      </div>
+      <input type="hidden" id="orcamento-editar-id">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharModal('modal-orcamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarOrcamento()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCRIPTS EXTERNOS                                              -->
+<!-- ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- ============================================================ -->
+<!-- SCRIPTS DA APLICAÇÃO (ordem de dependência)                  -->
+<!-- ============================================================ -->
+<!-- Service Worker -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+        .catch(err => console.warn('[PWA] Falha ao registrar Service Worker:', err));
+    });
+  }
+</script>
+
+<script src="js/dialogs.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/recorrencias.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/cartoes.js"></script>
+<script src="js/transacoes.js"></script>
+<script src="js/orcamentos.js"></script>
+<script src="js/configuracoes.js"></script>
+<script src="js/exportacoes.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
