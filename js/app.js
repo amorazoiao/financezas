@@ -186,6 +186,67 @@ window.onclick = e => {
   }
 };
 
+// ---------- PWA: botão de instalação ----------
+
+let _pwaPrompt = null;
+
+// Captura o evento de instalação do browser (Android/Chrome)
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _pwaPrompt = e;
+  _mostrarBannerInstalar();
+});
+
+function _mostrarBannerInstalar() {
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'pwa-banner';
+  banner.innerHTML = `
+    <div style="
+      position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+      background:#1e293b; color:white; padding:12px 20px;
+      border-radius:16px; display:flex; align-items:center; gap:12px;
+      box-shadow:0 8px 32px rgba(0,0,0,.3); z-index:9998;
+      font-size:14px; white-space:nowrap; max-width:90vw;">
+      <span style="font-size:1.4rem;">📲</span>
+      <span>Instalar o FinanÇezas</span>
+      <button onclick="instalarPWA()" style="
+        background:#6366f1; color:white; border:none; border-radius:10px;
+        padding:8px 14px; font-weight:600; cursor:pointer;">Instalar</button>
+      <button onclick="document.getElementById('pwa-banner').remove()" style="
+        background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem;">✕</button>
+    </div>`;
+  document.body.appendChild(banner);
+}
+
+/**
+ * Dispara o prompt nativo de instalação do PWA.
+ * No iPhone mostra instruções manuais pois o iOS não suporta o prompt automático.
+ */
+function instalarPWA() {
+  if (_pwaPrompt) {
+    _pwaPrompt.prompt();
+    _pwaPrompt.userChoice.then(() => {
+      _pwaPrompt = null;
+      const b = document.getElementById('pwa-banner');
+      if (b) b.remove();
+    });
+    return;
+  }
+
+  // iOS — mostra instrução manual
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS) {
+    confirmar({
+      icone: '📲',
+      titulo: 'Instalar no iPhone',
+      mensagem: 'Toque em Compartilhar ⬆ na barra do Safari e depois em "Adicionar à Tela de Início".',
+      textoBotao: 'Entendi',
+    }, () => {});
+  }
+}
+
 // ---------- Inicialização ----------
 
 /**
@@ -209,6 +270,13 @@ function initApp() {
 
   // Navega para o dashboard
   goToScreen('dashboard');
+
+  // Mostra botão de instalar no iPhone após 3 segundos
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone) {
+    setTimeout(_mostrarBannerInstalar, 3000);
+  }
 }
 
 window.onload = initApp;
