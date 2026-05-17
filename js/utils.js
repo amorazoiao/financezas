@@ -141,66 +141,73 @@ function setupMoneyInputs() {
     if (input.dataset.moneyInit) return;
     input.dataset.moneyInit = '1';
 
-    // Garante valor inicial formatado
-    input.value = (!input.value || input.value === '0,00') ? '0,00' : formatBRL(input.value);
+    // Estado interno: apenas os dígitos puros (ex: "1234" = R$ 12,34)
+    input._digits = input.value.replace(/\D/g, '') || '0';
+    input.value   = formatBRL(input._digits);
 
-    // Força cursor para o final após qualquer evento de foco/clique/toque
-    function fixarCursor() {
-      const el = this;
+    // Cursor sempre no final
+    function cursorFinal() {
       setTimeout(() => {
-        const len = el.value.length;
-        try { el.setSelectionRange(len, len); } catch(e) {}
+        try { input.setSelectionRange(input.value.length, input.value.length); } catch(e) {}
       }, 0);
     }
 
-    input.addEventListener('focus',    fixarCursor);
-    input.addEventListener('click',    fixarCursor);
-    input.addEventListener('mouseup',  fixarCursor);
-    input.addEventListener('touchend', fixarCursor);
+    input.addEventListener('focus',    cursorFinal);
+    input.addEventListener('click',    cursorFinal);
+    input.addEventListener('mouseup',  cursorFinal);
+    input.addEventListener('touchend', cursorFinal);
 
-    // Guarda os dígitos puros separadamente para não depender do e.key
-    // (mobile não dispara keydown com e.key confiável)
-    input._digits = input.value.replace(/\D/g, '') || '0';
+    // Intercepta ANTES do browser alterar o campo
+    input.addEventListener('keydown', function(e) {
+      if (e.ctrlKey || e.metaKey || e.key === 'Tab' ||
+          e.key === 'Enter' || e.key === 'Escape') return;
 
-    // Evento `input` — funciona em desktop E mobile
-    // Compara os dígitos anteriores com os novos para descobrir o que mudou
-    input.addEventListener('input', function () {
-      const novosDigitos = this.value.replace(/\D/g, '');
+      // Só trata dígitos e backspace — deixa o resto bloqueado
+      if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
+        e.preventDefault();
+        return;
+      }
 
-      // Detecta backspace: menos dígitos que antes
-      if (novosDigitos.length < this._digits.length) {
-        this._digits = this._digits.slice(0, -1) || '0';
+      e.preventDefault();
+
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        this._digits = this._digits.length > 1 ? this._digits.slice(0, -1) : '0';
       } else {
-        // Extrai apenas o(s) dígito(s) novo(s) adicionado(s)
-        const adicionados = novosDigitos.replace(this._digits.replace(/^0+/, '') || '0', '');
-        const somenteDigitos = adicionados.replace(/\D/g, '');
-        if (somenteDigitos) {
-          const concatenado = (this._digits === '0' ? '' : this._digits) + somenteDigitos;
-          this._digits = concatenado.slice(0, 13);
-        }
+        if (this._digits === '0') this._digits = e.key;
+        else if (this._digits.length < 13) this._digits += e.key;
       }
 
       this.value = formatBRL(this._digits);
-
-      // Cursor sempre no final
-      const len = this.value.length;
-      setTimeout(() => {
-        try { this.setSelectionRange(len, len); } catch(e) {}
-      }, 0);
+      cursorFinal();
     });
 
-    // Paste: extrai dígitos do conteúdo colado
-    input.addEventListener('paste', function (e) {
+    // Mobile: o keydown nem sempre dispara — usa beforeinput como fallback
+    input.addEventListener('beforeinput', function(e) {
+      e.preventDefault();
+
+      if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+        this._digits = this._digits.length > 1 ? this._digits.slice(0, -1) : '0';
+      } else if (e.data) {
+        const digito = e.data.replace(/\D/g, '');
+        if (!digito) return;
+        if (this._digits === '0') this._digits = digito;
+        else if (this._digits.length < 13) this._digits += digito;
+      }
+
+      this.value = formatBRL(this._digits);
+      cursorFinal();
+    });
+
+    // Paste
+    input.addEventListener('paste', function(e) {
       e.preventDefault();
       const colado = (e.clipboardData || window.clipboardData).getData('text');
       const novos  = colado.replace(/\D/g, '');
-      const base   = this._digits === '0' ? '' : this._digits;
-      this._digits = (base + novos).slice(0, 13);
+      if (!novos) return;
+      const base = this._digits === '0' ? '' : this._digits;
+      this._digits = (base + novos).slice(0, 13) || '0';
       this.value   = formatBRL(this._digits);
-      const len    = this.value.length;
-      setTimeout(() => {
-        try { this.setSelectionRange(len, len); } catch(e) {}
-      }, 0);
+      cursorFinal();
     });
   });
 }
