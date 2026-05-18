@@ -107,10 +107,6 @@ function selecionarFrequencia(botao) {
  * Exibe ou oculta o seletor de cartão no modal de recorrência,
  * conforme a forma de pagamento escolhida.
  */
-/**
- * Exibe ou oculta o seletor de cartão e a opção "cartão" no select de forma
- * de pagamento conforme o tipo da transação (receita não usa cartão).
- */
 function toggleCartaoRecorrencia() {
   const forma  = document.getElementById('recorrencia-forma-pagamento').value;
   const grupo  = document.getElementById('recorrencia-cartao-group');
@@ -252,11 +248,15 @@ function processarRecorrencias() {
     }
 
     if (rec.formaPagamento === 'cartao' && rec.cartaoId) {
-      // Para recorrência no cartão, a dataCompra é hoje.
-      // getDataVencimentoParcela calculará o mês correto da fatura
-      // levando em conta o fechamento do cartão.
       const cartao = cartoes.find(c => c.id === rec.cartaoId);
       if (cartao) {
+        const dataCompra = new Date(hojeStr + 'T00:00:00');
+        const diaCompra = dataCompra.getDate();
+        
+        // 🔥 CORREÇÃO: Se dia da compra >= fechamento, primeira parcela vai para o próximo mês
+        const offsetMeses = diaCompra >= cartao.fechamento ? 1 : 0;
+        
+        // 🔥 Guarda a data de compra real, mas o sistema saberá que deve exibir no mês correto
         compras.push({
           id: gerarId('rec_compra'),
           dataCompra: hojeStr,
@@ -267,7 +267,16 @@ function processarRecorrencias() {
           valorParcela: Math.abs(rec.valor),
           cartaoId: cartao.id,
           parcelasPagas: 0,
+          primeiroVencimentoOffset: offsetMeses,
         });
+        
+        const dataVencimento = new Date(
+          dataCompra.getFullYear(),
+          dataCompra.getMonth() + offsetMeses,
+          cartao.vencimento
+        );
+        const mesVencimento = dataVencimento.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        showToast(`✅ ${rec.descricao} agendado! Entra na fatura de ${mesVencimento}.`);
       }
     } else {
       // Lança como transação avulsa
@@ -280,6 +289,7 @@ function processarRecorrencias() {
         tipo: rec.valor > 0 ? 'receita' : 'despesa_avista',
         recorrenciaId: rec.id,
       });
+      showToast(`✅ ${rec.descricao} lançado hoje!`);
     }
 
     // Marca que já foi gerado hoje para evitar duplicatas

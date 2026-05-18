@@ -422,17 +422,12 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
     dia,
     dataFim,
     ativo: true,
-    // Se gerar hoje, marca ultimaGeracao para evitar que processarRecorrencias
-    // duplique na mesma execução do dia
     ultimaGeracao: gerarHoje ? hojeStr : '',
     formaPagamento,
     cartaoId,
   };
 
   if (gerarHoje) {
-    // Gera a primeira entrada com dataCompra = hoje.
-    // Para cartão: getDataVencimentoParcela cuidará do mês correto da fatura
-    // com base no fechamento — NÃO aplicamos offset aqui.
     if (formaPagamento === 'cartao' && cartaoId) {
       const cartao = cartoes.find(c => c.id === cartaoId);
       if (cartao) {
@@ -447,10 +442,7 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
           cartaoId: cartao.id,
           parcelasPagas: 0,
         });
-        const faturaMes = hoje.getDate() > cartao.fechamento
-          ? new Date(hoje.getFullYear(), hoje.getMonth() + 1, cartao.vencimento)
-          : new Date(hoje.getFullYear(), hoje.getMonth(), cartao.vencimento);
-        showToast(`✅ Lançado! Fatura de ${faturaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.`);
+        showToast(`✅ Recorrência criada! Primeira parcela lançada hoje.`);
       }
     } else {
       lancamentos.push({
@@ -465,7 +457,6 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
       showToast('✅ Recorrência criada e primeira entrada lançada hoje!');
     }
   } else {
-    // Sem gerar hoje — processarRecorrencias cuidará no dia correto
     const proxima = calcularProximaDataRecorrencia(novaRec, hoje);
     const dataStr = proxima ? proxima.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : '—';
     showToast(`✅ Recorrência criada! Próxima entrada: ${dataStr}.`);

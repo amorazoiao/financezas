@@ -175,9 +175,11 @@ function getTotalUtilizadoCartao(cartaoId) {
  * @param {number} indiceParcela  — 0 para a primeira parcela
  * @returns {Date}
  */
+// No arquivo storage.js, verifique se a função está assim:
 function getDataVencimentoParcela(compra, cartao, indiceParcela) {
   const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
   const diaCompra  = dataCompra.getDate();
+  // 🔥 Esta é a regra correta!
   const offsetMes  = diaCompra > cartao.fechamento ? 1 : 0;
   const mesVenc    = dataCompra.getMonth() + offsetMes + indiceParcela;
   return new Date(dataCompra.getFullYear(), mesVenc, cartao.vencimento);
@@ -270,20 +272,61 @@ function getFaturaPorMes(cartao, mes, ano) {
  */
 function obterTodosLancamentosParaUI() {
   const todos = [...lancamentos];
+  
   for (const compra of compras) {
-    todos.push({
-      id: compra.id,
-      data: compra.dataCompra,
-      descricao: compra.descricao,
-      categoria: compra.categoria,
-      valor: -compra.valorTotal,
-      tipo: 'compra_parcelada',
-      parcelas: compra.parcelas,
-      parcelasPagas: compra.parcelasPagas,
-      valorParcela: compra.valorParcela,
-      cartaoId: compra.cartaoId,
-      compraId: compra.id,
-    });
+    // 🔥 Para cada compra, precisamos encontrar em qual(is) mês(es) ela aparece
+    const cartao = cartoes.find(c => c.id === compra.cartaoId);
+    
+    if (!cartao) {
+      // Fallback: usa data da compra
+      todos.push({
+        id: compra.id,
+        data: compra.dataCompra,
+        descricao: compra.descricao,
+        categoria: compra.categoria,
+        valor: -compra.valorTotal,
+        tipo: 'compra_parcelada',
+        parcelas: compra.parcelas,
+        parcelasPagas: compra.parcelasPagas,
+        valorParcela: compra.valorParcela,
+        cartaoId: compra.cartaoId,
+        compraId: compra.id,
+      });
+      continue;
+    }
+    
+    // 🔥 CORREÇÃO: Para cada parcela, calcula a data de vencimento REAL
+    // e exibe a transação nessa data, não na data da compra
+    const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
+    const diaCompra = dataCompra.getDate();
+    
+    // Calcula o offset da primeira parcela (se compra após fechamento)
+    const offsetPrimeiraParcela = diaCompra >= cartao.fechamento ? 1 : 0;
+    
+    // Para cada parcela NÃO PAGA, cria uma entrada na data de vencimento
+    for (let i = compra.parcelasPagas; i < compra.parcelas; i++) {
+      const mesVencimento = dataCompra.getMonth() + offsetPrimeiraParcela + (i - compra.parcelasPagas);
+      const dataVencimento = new Date(dataCompra.getFullYear(), mesVencimento, cartao.vencimento);
+      
+      // Só adiciona se a data de vencimento for válida
+      if (!isNaN(dataVencimento.getTime())) {
+        todos.push({
+          id: `${compra.id}_parcela_${i + 1}`,
+          data: formatarDataLocal(dataVencimento), // 🔥 Data do VENCIMENTO, não da compra!
+          descricao: compra.descricao,
+          categoria: compra.categoria,
+          valor: -compra.valorParcela,
+          tipo: 'compra_parcelada',
+          parcelas: compra.parcelas,
+          parcelasPagas: compra.parcelasPagas,
+          valorParcela: compra.valorParcela,
+          cartaoId: compra.cartaoId,
+          compraId: compra.id,
+          parcelaNumero: i + 1,
+        });
+      }
+    }
   }
+  
   return todos;
 }
