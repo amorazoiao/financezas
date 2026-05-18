@@ -82,10 +82,10 @@ function _atualizarAnalise() {
   }
 
   for (const compra of compras) {
-    const dataCompra = new Date(compra.dataCompra);
+    const cartao = cartoes.find(c => c.id === compra.cartaoId);
+    if (!cartao) continue;
     for (let i = 0; i < compra.parcelas; i++) {
-      const venc = new Date(dataCompra);
-      venc.setMonth(dataCompra.getMonth() + i);
+      const venc = getDataVencimentoParcela(compra, cartao, i);
       if (venc.getMonth() === mes && venc.getFullYear() === ano && i >= compra.parcelasPagas) {
         if (CATEGORIAS_ESSENCIAIS.includes(compra.categoria)) essencial += compra.valorParcela;
         else superfluo += compra.valorParcela;
@@ -197,10 +197,10 @@ function atualizarGrafico() {
 
     const parcelas = [];
     for (const compra of compras) {
-      const dataCompra = new Date(compra.dataCompra);
+      const cartao = cartoes.find(c => c.id === compra.cartaoId);
+      if (!cartao) continue;
       for (let i = 0; i < compra.parcelas; i++) {
-        const venc = new Date(dataCompra);
-        venc.setMonth(dataCompra.getMonth() + i);
+        const venc = getDataVencimentoParcela(compra, cartao, i);
         if (venc.getMonth() === mes && venc.getFullYear() === ano && i >= compra.parcelasPagas) {
           parcelas.push({ categoria: compra.categoria, valor: compra.valorParcela });
         }
@@ -590,10 +590,10 @@ function setMesAtual() {
 function _somarParcelasDoMes(mes, ano) {
   let total = 0;
   for (const compra of compras) {
-    const dataCompra = new Date(compra.dataCompra);
+    const cartao = cartoes.find(c => c.id === compra.cartaoId);
+    if (!cartao) continue;
     for (let i = 0; i < compra.parcelas; i++) {
-      const venc = new Date(dataCompra);
-      venc.setMonth(dataCompra.getMonth() + i);
+      const venc = getDataVencimentoParcela(compra, cartao, i);
       if (venc.getMonth() === mes && venc.getFullYear() === ano && i >= compra.parcelasPagas) {
         total += compra.valorParcela;
       }
@@ -618,10 +618,10 @@ function _calcularGastosPorCategoria(mes, ano) {
   }
 
   for (const compra of compras) {
-    const dataCompra = new Date(compra.dataCompra);
+    const cartao = cartoes.find(c => c.id === compra.cartaoId);
+    if (!cartao) continue;
     for (let i = 0; i < compra.parcelas; i++) {
-      const venc = new Date(dataCompra);
-      venc.setMonth(dataCompra.getMonth() + i);
+      const venc = getDataVencimentoParcela(compra, cartao, i);
       if (venc.getMonth() === mes && venc.getFullYear() === ano && i >= compra.parcelasPagas) {
         gastos[compra.categoria] = (gastos[compra.categoria] || 0) + compra.valorParcela;
       }
