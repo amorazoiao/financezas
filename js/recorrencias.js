@@ -32,21 +32,33 @@ function verificarExibicaoGerarHoje() {
   const freqBtn = document.querySelector('#frequencia-chips .recorrencia-chip.active');
   if (!freqBtn) return;
 
-  const frequencia = freqBtn.dataset.freq;
-  const dia = parseInt(document.getElementById('recorrencia-dia').value);
-  const hoje = new Date();
+  const frequencia  = freqBtn.dataset.freq;
+  const dia         = parseInt(document.getElementById('recorrencia-dia').value);
+  const hoje        = new Date();
+  const forma       = document.getElementById('recorrencia-forma-pagamento').value;
+  const cartaoId    = document.getElementById('recorrencia-cartao')?.value;
   let mostrar = false;
 
   if (frequencia === 'mensal') {
     mostrar = dia === hoje.getDate();
   } else if (frequencia === 'quinzenal') {
-    const diaBase = Math.min(dia, 15);
+    const diaBase   = Math.min(dia, 15);
     const ultimoDia = getUltimoDiaMes(hoje.getFullYear(), hoje.getMonth());
     const q1 = Math.min(diaBase, ultimoDia);
     const q2 = Math.min(diaBase + 15, ultimoDia);
     mostrar = hoje.getDate() === q1 || (q2 > q1 && hoje.getDate() === q2);
   } else if (frequencia === 'semanal') {
     mostrar = dia === hoje.getDay();
+  }
+
+  // Para cartão: só mostra "gerar hoje" se hoje for ANTES ou NO dia do fechamento.
+  // Se já passou do fechamento, a entrada vai para a fatura do próximo mês de
+  // qualquer forma — não há motivo para oferecer a opção.
+  if (mostrar && forma === 'cartao' && cartaoId) {
+    const cartao = cartoes.find(c => c.id === cartaoId);
+    if (cartao && hoje.getDate() > cartao.fechamento) {
+      mostrar = false;
+    }
   }
 
   const toggle = document.getElementById('gerar-hoje-toggle');
@@ -95,9 +107,27 @@ function selecionarFrequencia(botao) {
  * Exibe ou oculta o seletor de cartão no modal de recorrência,
  * conforme a forma de pagamento escolhida.
  */
+/**
+ * Exibe ou oculta o seletor de cartão e a opção "cartão" no select de forma
+ * de pagamento conforme o tipo da transação (receita não usa cartão).
+ */
 function toggleCartaoRecorrencia() {
-  const forma = document.getElementById('recorrencia-forma-pagamento').value;
-  const grupo = document.getElementById('recorrencia-cartao-group');
+  const forma  = document.getElementById('recorrencia-forma-pagamento').value;
+  const grupo  = document.getElementById('recorrencia-cartao-group');
+  const isReceita = document.getElementById('modal-titulo').innerHTML.includes('Receita');
+
+  // Receitas nunca usam cartão — volta para débito se estava em cartão
+  if (isReceita) {
+    const optCartao = document.querySelector('#recorrencia-forma-pagamento option[value="cartao"]');
+    if (optCartao) optCartao.style.display = 'none';
+    document.getElementById('recorrencia-forma-pagamento').value = 'debito';
+    grupo.style.display = 'none';
+    return;
+  }
+
+  // Despesas — mostra a opção de cartão normalmente
+  const optCartao = document.querySelector('#recorrencia-forma-pagamento option[value="cartao"]');
+  if (optCartao) optCartao.style.display = '';
 
   if (forma === 'cartao') {
     grupo.style.display = 'block';
@@ -202,11 +232,15 @@ function verificarGeracaoHoje(rec) {
  * Chamado na inicialização e a cada 5 minutos.
  */
 function processarRecorrencias() {
-  const hoje = new Date();
+  const hoje     = new Date();
+  const hojeStr  = formatarDataLocal(hoje);   // "YYYY-MM-DD"
   let houveAlteracoes = false;
 
   for (const rec of recorrencias) {
     if (!rec.ativo) continue;
+
+    // Evita gerar duplicatas: só processa se ainda não gerou hoje
+    if (rec.ultimaGeracao === hojeStr) continue;
 
     if (!verificarGeracaoHoje(rec)) continue;
 
@@ -217,15 +251,15 @@ function processarRecorrencias() {
       continue;
     }
 
-    const dataStr = formatarDataLocal(hoje);
-
     if (rec.formaPagamento === 'cartao' && rec.cartaoId) {
-      // Lança no cartão de crédito
+      // Para recorrência no cartão, a dataCompra é hoje.
+      // getDataVencimentoParcela calculará o mês correto da fatura
+      // levando em conta o fechamento do cartão.
       const cartao = cartoes.find(c => c.id === rec.cartaoId);
       if (cartao) {
         compras.push({
-          id: gerarId('compra_rec_' + rec.id),
-          dataCompra: dataStr,
+          id: gerarId('rec_compra'),
+          dataCompra: hojeStr,
           descricao: rec.descricao + ' (Recorrente)',
           categoria: rec.categoria,
           valorTotal: Math.abs(rec.valor),
@@ -239,7 +273,7 @@ function processarRecorrencias() {
       // Lança como transação avulsa
       lancamentos.push({
         id: gerarId('rec_trans'),
-        data: dataStr,
+        data: hojeStr,
         descricao: rec.descricao + ' (Recorrente)',
         categoria: rec.categoria,
         valor: rec.valor,
@@ -248,6 +282,8 @@ function processarRecorrencias() {
       });
     }
 
+    // Marca que já foi gerado hoje para evitar duplicatas
+    rec.ultimaGeracao = hojeStr;
     houveAlteracoes = true;
   }
 
