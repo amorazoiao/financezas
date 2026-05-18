@@ -164,6 +164,24 @@ function getTotalUtilizadoCartao(cartaoId) {
 }
 
 /**
+ * Retorna o mês de vencimento (como Date) de uma parcela específica de uma compra,
+ * respeitando a regra de fechamento do cartão:
+ * se a compra foi feita após o fechamento, a primeira parcela vai para o mês seguinte.
+ *
+ * @param {Object} compra
+ * @param {Object} cartao
+ * @param {number} indiceParcela  — 0 para a primeira parcela
+ * @returns {Date}
+ */
+function getDataVencimentoParcela(compra, cartao, indiceParcela) {
+  const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
+  const diaCompra  = dataCompra.getDate();
+  const offsetMes  = diaCompra > cartao.fechamento ? 1 : 0;
+  const mesVenc    = dataCompra.getMonth() + offsetMes + indiceParcela;
+  return new Date(dataCompra.getFullYear(), mesVenc, cartao.vencimento);
+}
+
+/**
  * Monta a fatura de um cartão para um determinado mês/ano.
  * Inclui parcelas vencidas naquele período e pagamentos já realizados.
  * @param {Object} cartao
@@ -177,16 +195,22 @@ function getFaturaPorMes(cartao, mes, ano) {
 
   for (const compra of compras) {
     if (compra.cartaoId !== cartao.id) continue;
-    const dataCompra = new Date(compra.dataCompra);
+    const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
+
+    // Se a compra foi feita APÓS o fechamento da fatura do mês da compra,
+    // a primeira parcela só entra na fatura do mês seguinte.
+    const diaCompra = dataCompra.getDate();
+    const offsetMes = diaCompra > cartao.fechamento ? 1 : 0;
 
     for (let i = 0; i < compra.parcelas; i++) {
-      const dataVencimento = new Date(dataCompra);
-      dataVencimento.setMonth(dataCompra.getMonth() + i);
+      // Mês de vencimento = mês da compra + offset (se após fechamento) + índice da parcela
+      const mesVenc = dataCompra.getMonth() + offsetMes + i;
+      const dataVencimento = new Date(dataCompra.getFullYear(), mesVenc, cartao.vencimento);
 
-      const noMes = dataVencimento.getMonth() === mes && dataVencimento.getFullYear() === ano;
-      const nãoPaga = i >= compra.parcelasPagas;
+      const noMes  = dataVencimento.getMonth() === mes && dataVencimento.getFullYear() === ano;
+      const naoPaga = i >= compra.parcelasPagas;
 
-      if (noMes && nãoPaga) {
+      if (noMes && naoPaga) {
         valorTotal += compra.valorParcela;
         parcelasDaFatura.push({
           id: compra.id,
