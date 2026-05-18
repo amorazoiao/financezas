@@ -59,6 +59,7 @@ const mesesNomes = [
 /**
  * Serializa todo o estado da aplicação e salva no localStorage.
  */
+// No arquivo storage.js, verifique se a função está assim:
 function salvarTudo() {
   const dados = {
     version: APP_VERSION,
@@ -71,6 +72,7 @@ function salvarTudo() {
     orcamentos,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+  console.log('[FinanÇezas] Dados salvos:', dados); // 🔥 ADICIONE ESTA LINHA PARA DEBUG
 }
 
 /**
