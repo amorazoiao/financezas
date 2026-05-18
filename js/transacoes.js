@@ -33,7 +33,9 @@ function abrirModalTransacao(tipo) {
   setTimeout(() => {
     const vi2 = document.getElementById('transacao-valor');
     if (vi2 && !vi2.value) vi2.value = '0,00';
+    toggleCartaoRecorrencia();   // garante que opção cartão some em receitas
     verificarExibicaoGerarHoje();
+    setupMoneyInputs();
   }, 50);
 }
 
@@ -389,14 +391,15 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
   const freqBtn    = document.querySelector('#frequencia-chips .recorrencia-chip.active');
   const frequencia = freqBtn ? freqBtn.dataset.freq : 'mensal';
   const hoje       = new Date();
+  const hojeStr    = formatarDataLocal(hoje);
 
   // Valida e normaliza o dia conforme a frequência
   let dia = parseInt(document.getElementById('recorrencia-dia').value);
-  if (frequencia === 'semanal')    dia = (!isNaN(dia) && dia >= 0 && dia <= 6) ? dia : hoje.getDay();
+  if (frequencia === 'semanal')        dia = (!isNaN(dia) && dia >= 0 && dia <= 6) ? dia : hoje.getDay();
   else if (frequencia === 'quinzenal') dia = Math.min(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 15);
-  else                             dia = Math.min(Math.max(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 1), 31);
+  else                                 dia = Math.min(Math.max(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 1), 31);
 
-  const dataFim       = document.getElementById('recorrencia-fim').value || null;
+  const dataFim        = document.getElementById('recorrencia-fim').value || null;
   const formaPagamento = document.getElementById('recorrencia-forma-pagamento').value;
   let cartaoId = null;
 
@@ -404,6 +407,11 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
     cartaoId = document.getElementById('recorrencia-cartao').value;
     if (!cartaoId) { showToast('Selecione um cartão', true); return; }
   }
+
+  // "Gerar hoje" está visível E marcado
+  const gerarHojeEl       = document.getElementById('gerar-hoje-toggle');
+  const gerarPrimeiraHoje = document.getElementById('gerar-primeira-hoje');
+  const gerarHoje         = gerarHojeEl?.style.display === 'flex' && gerarPrimeiraHoje?.checked === true;
 
   const novaRec = {
     id: gerarId('rec'),
@@ -414,46 +422,53 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
     dia,
     dataFim,
     ativo: true,
-    ultimaGeracao: '',
+    // Se gerar hoje, marca ultimaGeracao para evitar que processarRecorrencias
+    // duplique na mesma execução do dia
+    ultimaGeracao: gerarHoje ? hojeStr : '',
     formaPagamento,
     cartaoId,
   };
 
-  // Gera a primeira ocorrência
-  const gerarHojeEl    = document.getElementById('gerar-hoje-toggle');
-  const gerarPrimeiraHoje = document.getElementById('gerar-primeira-hoje');
-  const gerarHoje      = gerarHojeEl?.style.display === 'flex' && gerarPrimeiraHoje?.checked === true;
-  const dataPrimeira   = gerarHoje ? hoje : calcularProximaDataRecorrencia(novaRec, hoje);
-
-  if (dataPrimeira && formaPagamento === 'cartao' && cartaoId) {
-    const cartao = cartoes.find(c => c.id === cartaoId);
-    if (cartao) {
-      compras.push({
-        id: gerarId('compra_rec_' + novaRec.id),
-        dataCompra: formatarDataLocal(dataPrimeira),
+  if (gerarHoje) {
+    // Gera a primeira entrada com dataCompra = hoje.
+    // Para cartão: getDataVencimentoParcela cuidará do mês correto da fatura
+    // com base no fechamento — NÃO aplicamos offset aqui.
+    if (formaPagamento === 'cartao' && cartaoId) {
+      const cartao = cartoes.find(c => c.id === cartaoId);
+      if (cartao) {
+        compras.push({
+          id: gerarId('rec_compra'),
+          dataCompra: hojeStr,
+          descricao: descricao + ' (Recorrente)',
+          categoria,
+          valorTotal: Math.abs(valor),
+          parcelas: 1,
+          valorParcela: Math.abs(valor),
+          cartaoId: cartao.id,
+          parcelasPagas: 0,
+        });
+        const faturaMes = hoje.getDate() > cartao.fechamento
+          ? new Date(hoje.getFullYear(), hoje.getMonth() + 1, cartao.vencimento)
+          : new Date(hoje.getFullYear(), hoje.getMonth(), cartao.vencimento);
+        showToast(`✅ Lançado! Fatura de ${faturaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.`);
+      }
+    } else {
+      lancamentos.push({
+        id: gerarId('rec_trans'),
+        data: hojeStr,
         descricao: descricao + ' (Recorrente)',
         categoria,
-        valorTotal: Math.abs(valor),
-        parcelas: 1,
-        valorParcela: Math.abs(valor),
-        cartaoId: cartao.id,
-        parcelasPagas: 0,
+        valor,
+        tipo: valor > 0 ? 'receita' : 'despesa_avista',
+        recorrenciaId: novaRec.id,
       });
-      showToast(`✅ Recorrência criada! Lançado no cartão ${cartao.nome}.`);
+      showToast('✅ Recorrência criada e primeira entrada lançada hoje!');
     }
-  } else if (dataPrimeira) {
-    lancamentos.push({
-      id: gerarId('trans_rec'),
-      data: formatarDataLocal(dataPrimeira),
-      descricao: descricao + ' (Recorrente)',
-      categoria,
-      valor,
-      tipo: valor > 0 ? 'receita' : 'despesa_avista',
-      recorrenciaId: novaRec.id,
-    });
-    showToast(`✅ Recorrência criada! Lançada para ${dataPrimeira.toLocaleDateString('pt-BR')}.`);
   } else {
-    showToast('✅ Recorrência criada! Processada no próximo ciclo.');
+    // Sem gerar hoje — processarRecorrencias cuidará no dia correto
+    const proxima = calcularProximaDataRecorrencia(novaRec, hoje);
+    const dataStr = proxima ? proxima.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : '—';
+    showToast(`✅ Recorrência criada! Próxima entrada: ${dataStr}.`);
   }
 
   recorrencias.push(novaRec);
