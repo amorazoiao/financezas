@@ -349,6 +349,14 @@ function toggleDarkMode() {
 
 // ---------- Resetar dados ----------
 
+// =============================================================================
+// configuracoes.js — Configurações, categorias, tema e backup/restore
+// =============================================================================
+
+// ... (todo o código anterior permanece igual)
+
+// ---------- Resetar dados ----------
+
 /**
  * Apaga todos os dados do aplicativo após confirmação.
  */
@@ -360,6 +368,7 @@ function resetAll() {
     textoBotao: 'Sim, apagar tudo',
     perigo: true,
   }, () => {
+    // Limpa TODOS os arrays globais
     lancamentos = [];
     compras = [];
     recorrencias = [];
@@ -367,12 +376,30 @@ function resetAll() {
     reservaMetas = [];
     categoriasPersonalizadas = [];
     orcamentos = [];
+    
+    // 🔥 CRÍTICO: Limpa também as categorias padrão (opcional, mas recomendado)
+    // Se quiser manter as categorias padrão, comente as linhas abaixo
+    // categoriasReceitaPadrao = ['Salário', 'Investimentos', 'Freelance', 'Presentes', 'Outros'];
+    // categoriasDespesaPadrao = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Saúde', 'Educação', 'Contas'];
+    
+    // 🔥 CRÍTICO: Salva no localStorage
     salvarTudo();
+    
+    // 🔥 CRÍTICO: Força re-renderização completa da UI
     renderTudo();
+    
+    // Fecha o modal de configurações
     fecharModal('modal-config');
-    showToast('Dados resetados!');
+    
+    // Navega para o dashboard (opcional, mas boa prática)
+    goToScreen('dashboard');
+    
+    // Mostra feedback visual
+    showToast('✅ Todos os dados foram resetados!');
   });
 }
+
+// ... (resto do código permanece igual)
 
 // ---------- Helpers privados ----------
 
