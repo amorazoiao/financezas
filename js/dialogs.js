@@ -183,8 +183,8 @@
   // Fecha ao clicar fora da caixa
   overlay.addEventListener('click', e => { if (e.target === overlay) _fecharDialog(); });
 
-  // Impede que cliques dentro da caixa borbulhem até o window.onclick do app
-  document.getElementById('dlg-box').addEventListener('click', e => e.stopPropagation());
+  // Impede que cliques no overlay (mas fora da caixa) borbulhem para o window
+  overlay.addEventListener('click', e => e.stopPropagation());
 
   // Fecha com Escape
   document.addEventListener('keydown', e => {
@@ -229,9 +229,14 @@ function _configurarBotoes({ textoCancelar = 'Cancelar', textoConfirmar = 'Confi
   btnConfirm.textContent = textoConfirmar;
   btnConfirm.className   = `dlg-btn ${perigo ? 'dlg-btn-danger' : 'dlg-btn-confirm'}`;
 
-  // Limpa handlers anteriores
-  btnCancel.onclick  = _fecharDialog;
-  btnConfirm.onclick = _executarCallback;
+  // Clona os botões para remover todos os listeners anteriores de uma vez
+  const novoCancel  = btnCancel.cloneNode(true);
+  const novoConfirm = btnConfirm.cloneNode(true);
+  btnCancel.parentNode.replaceChild(novoCancel, btnCancel);
+  btnConfirm.parentNode.replaceChild(novoConfirm, btnConfirm);
+
+  novoCancel.addEventListener('click',  e => { e.stopPropagation(); _fecharDialog(); });
+  novoConfirm.addEventListener('click', e => { e.stopPropagation(); _executarCallback(); });
 }
 
 function _executarCallback() {
