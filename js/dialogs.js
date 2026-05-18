@@ -169,12 +169,12 @@
     <div id="dlg-box" role="dialog" aria-modal="true">
       <div id="dlg-header">
         <div id="dlg-icon"></div>
-        <p  id="dlg-titulo"></p>
-        <p  id="dlg-mensagem"></p>
+        <p id="dlg-titulo"></p>
+        <p id="dlg-mensagem"></p>
       </div>
       <div id="dlg-body"></div>
       <div id="dlg-footer">
-        <button class="dlg-btn dlg-btn-cancel"  id="dlg-btn-cancel">Cancelar</button>
+        <button class="dlg-btn dlg-btn-cancel" id="dlg-btn-cancel">Cancelar</button>
         <button class="dlg-btn dlg-btn-confirm" id="dlg-btn-confirm">Confirmar</button>
       </div>
     </div>`;
@@ -229,40 +229,68 @@ function _configurarBotoes({ textoCancelar = 'Cancelar', textoConfirmar = 'Confi
   btnConfirm.textContent = textoConfirmar;
   btnConfirm.className   = `dlg-btn ${perigo ? 'dlg-btn-danger' : 'dlg-btn-confirm'}`;
 
-  // Clona os botões para remover todos os listeners anteriores de uma vez
-  const novoCancel  = btnCancel.cloneNode(true);
+  // Remove listeners antigos clonando e substituindo
+  const novoCancel = btnCancel.cloneNode(true);
   const novoConfirm = btnConfirm.cloneNode(true);
   btnCancel.parentNode.replaceChild(novoCancel, btnCancel);
   btnConfirm.parentNode.replaceChild(novoConfirm, btnConfirm);
 
-  novoCancel.addEventListener('click',  e => { e.stopPropagation(); _fecharDialog(); });
-  novoConfirm.addEventListener('click', e => { e.stopPropagation(); _executarCallback(); });
+  // Adiciona novos listeners
+  novoCancel.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _fecharDialog();
+  });
+  
+  novoConfirm.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _executarCallback();
+  });
 }
 
 function _executarCallback() {
-  if (!_dlgCallback) { _fecharDialog(); return; }
+  // 🔥 CORREÇÃO: Verifica se o callback existe e é uma função
+  if (!_dlgCallback) {
+    console.warn('[dialogs] _executarCallback chamado sem callback');
+    _fecharDialog();
+    return;
+  }
+  
+  if (typeof _dlgCallback !== 'function') {
+    console.error('[dialogs] _dlgCallback não é uma função:', _dlgCallback);
+    _fecharDialog();
+    return;
+  }
 
   if (_dlgTipo === 'confirm') {
+    const callback = _dlgCallback;
     _fecharDialog();
-    _dlgCallback();
+    callback();
     return;
   }
 
   if (_dlgTipo === 'texto') {
     const input = document.getElementById('dlg-input-texto');
     const valor = input?.value.trim();
-    if (!valor) { _shakeInput(input); return; }
+    if (!valor) { 
+      _shakeInput(input); 
+      return; 
+    }
+    const callback = _dlgCallback;
     _fecharDialog();
-    _dlgCallback(valor);
+    callback(valor);
     return;
   }
 
   if (_dlgTipo === 'valor') {
     const input  = document.getElementById('dlg-input-valor');
     const numero = currencyToNumber(input?.value);
-    if (!numero || numero <= 0) { _shakeInput(input); return; }
+    if (!numero || numero <= 0) { 
+      _shakeInput(input); 
+      return; 
+    }
+    const callback = _dlgCallback;
     _fecharDialog();
-    _dlgCallback(numero);
+    callback(numero);
     return;
   }
 
@@ -272,12 +300,17 @@ function _executarCallback() {
     document.querySelectorAll('#dlg-body [data-campo]').forEach(el => {
       const campo = el.dataset.campo;
       const valor = el.value?.trim();
-      if (el.required && !valor) { _shakeInput(el); invalido = true; return; }
+      if (el.required && !valor) { 
+        _shakeInput(el); 
+        invalido = true; 
+        return; 
+      }
       resultado[campo] = valor;
     });
     if (invalido) return;
+    const callback = _dlgCallback;
     _fecharDialog();
-    _dlgCallback(resultado);
+    callback(resultado);
   }
 }
 
@@ -321,6 +354,12 @@ document.getElementById('dlg-overlay').addEventListener('keydown', e => {
  * });
  */
 function confirmar({ titulo, mensagem = '', icone = '⚠️', textoBotao = 'Confirmar', perigo = false }, onConfirm) {
+  // 🔥 CORREÇÃO: Valida se onConfirm é uma função
+  if (typeof onConfirm !== 'function') {
+    console.error('[dialogs] confirmar: onConfirm não é uma função', onConfirm);
+    return;
+  }
+  
   _dlgTipo     = 'confirm';
   _dlgCallback = onConfirm;
 
@@ -349,6 +388,12 @@ function confirmar({ titulo, mensagem = '', icone = '⚠️', textoBotao = 'Conf
  * });
  */
 function perguntarTexto({ titulo, label = '', valorInicial = '', placeholder = '', icone = '✏️', textoBotao = 'Salvar' }, onConfirm) {
+  // 🔥 CORREÇÃO: Valida se onConfirm é uma função
+  if (typeof onConfirm !== 'function') {
+    console.error('[dialogs] perguntarTexto: onConfirm não é uma função', onConfirm);
+    return;
+  }
+  
   _dlgTipo     = 'texto';
   _dlgCallback = onConfirm;
 
@@ -380,6 +425,12 @@ function perguntarTexto({ titulo, label = '', valorInicial = '', placeholder = '
  * });
  */
 function perguntarValor({ titulo, label = 'Valor', valorInicial = 0, info = '', icone = '💰', textoBotao = 'Confirmar' }, onConfirm) {
+  // 🔥 CORREÇÃO: Valida se onConfirm é uma função
+  if (typeof onConfirm !== 'function') {
+    console.error('[dialogs] perguntarValor: onConfirm não é uma função', onConfirm);
+    return;
+  }
+  
   _dlgTipo     = 'valor';
   _dlgCallback = onConfirm;
 
@@ -399,7 +450,7 @@ function perguntarValor({ titulo, label = 'Valor', valorInicial = 0, info = '', 
     const el = document.getElementById('dlg-input-valor');
     if (!el) return;
     el.dataset.moneyInit = '';   // força re-inicialização pelo setupMoneyInputs
-    setupMoneyInputs();
+    if (typeof setupMoneyInputs === 'function') setupMoneyInputs();
     el.focus();
     const len = el.value.length;
     el.setSelectionRange(len, len);
@@ -429,6 +480,12 @@ function perguntarValor({ titulo, label = 'Valor', valorInicial = 0, info = '', 
  * }, ({ nome, valor }) => { ... });
  */
 function perguntarForm({ titulo, icone = '✏️', textoBotao = 'Salvar', campos = [] }, onConfirm) {
+  // 🔥 CORREÇÃO: Valida se onConfirm é uma função
+  if (typeof onConfirm !== 'function') {
+    console.error('[dialogs] perguntarForm: onConfirm não é uma função', onConfirm);
+    return;
+  }
+  
   _dlgTipo     = 'form';
   _dlgCallback = onConfirm;
 
@@ -478,7 +535,7 @@ function perguntarForm({ titulo, icone = '✏️', textoBotao = 'Salvar', campos
     document.querySelectorAll('#dlg-body .money-input').forEach(el => {
       el.dataset.moneyInit = '';   // força re-inicialização
     });
-    setupMoneyInputs();
+    if (typeof setupMoneyInputs === 'function') setupMoneyInputs();
     const primeiro = document.querySelector('#dlg-body input');
     if (primeiro) {
       primeiro.focus();
