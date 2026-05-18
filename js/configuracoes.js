@@ -167,7 +167,7 @@ function _dialogComConfigFechado(abrirDialog) {
  * @param {string} nomeAtual
  */
 function editarCategoriaPadrao(tipo, nomeAtual) {
-  _dialogComConfigFechado(() => perguntarTexto({
+  perguntarTexto({
     icone: '✏️',
     titulo: `Renomear "${nomeAtual}"`,
     label: 'Novo nome',
@@ -190,7 +190,7 @@ function editarCategoriaPadrao(tipo, nomeAtual) {
     }
     _renomearCategoriaEmDados(nomeAtual, novoNome);
     showToast('Atualizada!');
-  }));
+  });
 }
 
 /**
@@ -201,7 +201,7 @@ function editarCategoriaPadrao(tipo, nomeAtual) {
  */
 function removerCategoriaPadrao(tipo, nome) {
   if (nome === 'Outros') { showToast("'Outros' não pode ser removida", true); return; }
-  _dialogComConfigFechado(() => confirmar({
+  confirmar({
     icone: '🗑️',
     titulo: `Remover "${nome}"?`,
     mensagem: 'Os lançamentos desta categoria serão movidos para "Outros".',
@@ -213,7 +213,7 @@ function removerCategoriaPadrao(tipo, nome) {
     else                    categoriasDespesaPadrao  = categoriasDespesaPadrao.filter(c => c !== nome);
     _atualizarAposAlterarCategoria();
     showToast('Removida!');
-  }));
+  });
 }
 
 /**
@@ -249,7 +249,7 @@ function editarCategoriaPersonalizada(id) {
   const c = categoriasPersonalizadas.find(x => x.id === id);
   if (!c) return;
 
-  _dialogComConfigFechado(() => perguntarTexto({
+  perguntarTexto({
     icone: '✏️',
     titulo: `Renomear "${c.nome}"`,
     label: 'Novo nome',
@@ -266,7 +266,7 @@ function editarCategoriaPersonalizada(id) {
     c.nome = novoNome;
     _renomearCategoriaEmDados(nomeAntigo, c.nome);
     showToast('Atualizada!');
-  }));
+  });
 }
 
 /**
@@ -277,7 +277,7 @@ function removerCategoriaPersonalizada(id) {
   const c = categoriasPersonalizadas.find(x => x.id === id);
   if (!c) return;
 
-  _dialogComConfigFechado(() => confirmar({
+  confirmar({
     icone: '🗑️',
     titulo: `Remover "${c.nome}"?`,
     mensagem: 'Os lançamentos desta categoria serão movidos para "Outros".',
@@ -288,7 +288,7 @@ function removerCategoriaPersonalizada(id) {
     categoriasPersonalizadas = categoriasPersonalizadas.filter(x => x.id !== id);
     _atualizarAposAlterarCategoria();
     showToast('Removida!');
-  }));
+  });
 }
 
 // ---------- Selects de categoria ----------
@@ -353,29 +353,25 @@ function toggleDarkMode() {
  * Apaga todos os dados do aplicativo após confirmação.
  */
 function resetAll() {
-  // Fecha o modal de config primeiro para evitar conflito com o overlay do dialog
-  fecharModal('modal-config');
-
-  setTimeout(() => {
-    confirmar({
-      icone: '☠️',
-      titulo: 'Resetar TODOS os dados?',
-      mensagem: 'Lançamentos, cartões, metas e recorrências serão apagados permanentemente. Esta ação é irreversível.',
-      textoBotao: 'Sim, apagar tudo',
-      perigo: true,
-    }, () => {
-      lancamentos = [];
-      compras = [];
-      recorrencias = [];
-      cartoes = [];
-      reservaMetas = [];
-      categoriasPersonalizadas = [];
-      orcamentos = [];
-      salvarTudo();
-      renderTudo();
-      showToast('Dados resetados!');
-    });
-  }, 150); // aguarda o modal-config fechar antes de abrir o dialog
+  confirmar({
+    icone: '☠️',
+    titulo: 'Resetar TODOS os dados?',
+    mensagem: 'Lançamentos, cartões, metas e recorrências serão apagados permanentemente. Esta ação é irreversível.',
+    textoBotao: 'Sim, apagar tudo',
+    perigo: true,
+  }, () => {
+    lancamentos = [];
+    compras = [];
+    recorrencias = [];
+    cartoes = [];
+    reservaMetas = [];
+    categoriasPersonalizadas = [];
+    orcamentos = [];
+    salvarTudo();
+    renderTudo();
+    fecharModal('modal-config');
+    showToast('Dados resetados!');
+  });
 }
 
 // ---------- Helpers privados ----------
