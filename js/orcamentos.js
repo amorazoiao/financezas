@@ -202,10 +202,10 @@ function _calcularGastosOrcamento(mes, ano) {
   }
 
   for (const compra of compras) {
-    const dataCompra = new Date(compra.dataCompra);
+    const cartao = cartoes.find(c => c.id === compra.cartaoId);
+    if (!cartao) continue;
     for (let i = 0; i < compra.parcelas; i++) {
-      const venc = new Date(dataCompra);
-      venc.setMonth(dataCompra.getMonth() + i);
+      const venc = getDataVencimentoParcela(compra, cartao, i);
       if (venc.getMonth() === mes && venc.getFullYear() === ano && i >= compra.parcelasPagas) {
         gastos[compra.categoria] = (gastos[compra.categoria] || 0) + compra.valorParcela;
       }
