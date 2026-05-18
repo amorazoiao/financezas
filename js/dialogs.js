@@ -183,6 +183,9 @@
   // Fecha ao clicar fora da caixa
   overlay.addEventListener('click', e => { if (e.target === overlay) _fecharDialog(); });
 
+  // Impede que cliques dentro da caixa borbulhem até o window.onclick do app
+  document.getElementById('dlg-box').addEventListener('click', e => e.stopPropagation());
+
   // Fecha com Escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && overlay.classList.contains('open')) _fecharDialog();
