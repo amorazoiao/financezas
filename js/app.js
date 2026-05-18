@@ -171,6 +171,9 @@ document.getElementById('moreButton').addEventListener('click', () => openSheet(
  * Fecha modais ao clicar no overlay externo.
  */
 window.onclick = e => {
+  // Ignora cliques dentro do sistema de dialogs (dlg-overlay)
+  if (e.target.closest && e.target.closest('#dlg-overlay')) return;
+
   const modais = [
     'modal-transacao',
     'modal-cartao',
