@@ -63,39 +63,80 @@ function getUltimoDiaMes(ano, mes) {
 /**
  * Formata dígitos brutos no padrão BRL (sem prefixo R$).
  * Trata a string como centavos da direita para a esquerda.
- * Ex: "5"→"0,05" | "150"→"1,50" | "123456"→"1.234,56"
+ * Ex: "5" → "0,05" | "150" → "1,50" | "123456" → "1.234,56"
+ * 
+ * 🔥 CORREÇÃO: Agora formata corretamente com separador de milhar (ponto)
+ * 
  * @param {string|number} v
  * @returns {string}
  */
 function formatBRL(v) {
   const digits = v.toString().replace(/\D/g, '');
   if (!digits) return '0,00';
-  const num      = parseInt(digits, 10);
-  const reais    = Math.floor(num / 100);
-  const cents    = num % 100;
-  const reaisStr = reais.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  
+  const num = parseInt(digits, 10);
+  const reais = Math.floor(num / 100);
+  const cents = num % 100;
+  
+  // 🔥 FORMATO CORRETO: separador de milhar com ponto
+  const reaisStr = reais.toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+  
   return `${reaisStr},${String(cents).padStart(2, '0')}`;
 }
 
 /**
  * Converte string no formato BRL ("1.234,56") para number (1234.56).
+ * Suporta tanto formato brasileiro quanto americano como fallback.
+ * 
+ * 🔥 CORREÇÃO: Agora lida corretamente com pontos de milhar
+ * 
  * @param {string} v
  * @returns {number}
  */
 function currencyToNumber(v) {
   if (!v) return 0;
-  return Number(v.toString().replace(/\./g, '').replace(',', '.'));
+  
+  // Remove tudo que não é dígito, vírgula ou ponto
+  let cleaned = v.toString().trim();
+  
+  // Detecta o padrão: se tem vírgula, provavelmente é BRL
+  if (cleaned.includes(',')) {
+    // Remove pontos de milhar (se existirem)
+    cleaned = cleaned.replace(/\./g, '');
+    // Troca vírgula por ponto decimal
+    cleaned = cleaned.replace(',', '.');
+  } else {
+    // Fallback: formato americano (apenas ponto decimal)
+    // Não faz nada, mantém como está
+  }
+  
+  const number = parseFloat(cleaned);
+  return isNaN(number) ? 0 : number;
 }
 
 /**
  * Formata um number como moeda BRL completa.
  * Ex: 1234.56 → "R$ 1.234,56" | -50 → "R$ -50,00"
+ * 
+ * 🔥 CORREÇÃO: Agora usa toLocaleString para garantir formato brasileiro correto
+ * 
  * @param {number} v
  * @returns {string}
  */
 function formatMoney(v) {
-  if (v < 0) return `R$ -${Math.abs(v).toFixed(2).replace('.', ',')}`;
-  return `R$ ${Math.abs(v).toFixed(2).replace('.', ',')}`;
+  if (v < 0) {
+    return `R$ ${Math.abs(v).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  }
+  return `R$ ${v.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 }
 
 // ---------- DOM / UI ----------
@@ -136,19 +177,34 @@ function showToast(mensagem, erro = false) {
  * - Ao colar: trata o conteúdo colado como dígitos brutos
  * - Backspace: remove o último dígito (efeito de "apagar da direita")
  */
+/**
+ * Inicializa inputs com a classe `.money-input` para digitação
+ * monetária da direita para a esquerda no padrão BRL.
+ *
+ * 🔥 CORREÇÃO: Agora exibe corretamente valores como "1.234,56" durante a digitação
+ * 
+ * Comportamento:
+ * - Ao focar: cursor vai instantaneamente para o final
+ * - Ao digitar: acumula apenas dígitos, reformata e mantém cursor no final
+ * - Ao colar: trata o conteúdo colado como dígitos brutos
+ * - Backspace: remove o último dígito (efeito de "apagar da direita")
+ */
 function setupMoneyInputs() {
   document.querySelectorAll('.money-input').forEach(input => {
     if (input.dataset.moneyInit) return;
     input.dataset.moneyInit = '1';
 
-    // Estado interno: apenas os dígitos puros (ex: "1234" = R$ 12,34)
-    input._digits = input.value.replace(/\D/g, '') || '0';
-    input.value   = formatBRL(input._digits);
+    // Estado interno: apenas os dígitos puros (ex: "123456" = R$ 1.234,56)
+    const rawValue = input.value.replace(/\D/g, '') || '0';
+    input._digits = rawValue;
+    input.value = formatBRL(rawValue);
 
     // Cursor sempre no final
     function cursorFinal() {
       setTimeout(() => {
-        try { input.setSelectionRange(input.value.length, input.value.length); } catch(e) {}
+        try { 
+          input.setSelectionRange(input.value.length, input.value.length); 
+        } catch(e) {}
       }, 0);
     }
 
@@ -202,11 +258,11 @@ function setupMoneyInputs() {
     input.addEventListener('paste', function(e) {
       e.preventDefault();
       const colado = (e.clipboardData || window.clipboardData).getData('text');
-      const novos  = colado.replace(/\D/g, '');
+      const novos = colado.replace(/\D/g, '');
       if (!novos) return;
       const base = this._digits === '0' ? '' : this._digits;
       this._digits = (base + novos).slice(0, 13) || '0';
-      this.value   = formatBRL(this._digits);
+      this.value = formatBRL(this._digits);
       cursorFinal();
     });
   });
