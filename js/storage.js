@@ -80,6 +80,7 @@ function salvarTudo() {
  * Garante compatibilidade com dados da versão 8.x.
  * Caso não existam dados, inicializa arrays vazios.
  */
+
 function carregarDados() {
   const stored = localStorage.getItem(STORAGE_KEY);
 
@@ -96,6 +97,13 @@ function carregarDados() {
         reservaMetas           = d.reservaMetas           || [];
         categoriasPersonalizadas = d.categoriasPersonalizadas || [];
         orcamentos             = d.orcamentos             || [];
+        
+        // 🔥 GARANTE QUE AS CATEGORIAS PADRÃO EXISTAM
+        // Se veio de um backup antigo que não tinha essas propriedades, mantém as atuais
+        if (!d.categoriasReceitaPadrao) {
+          // Mantém as categorias padrão atuais (não altera)
+          console.log('[FinanÇezas] Mantendo categorias padrão existentes');
+        }
         return;
       }
     } catch (e) {
@@ -103,7 +111,7 @@ function carregarDados() {
     }
   }
 
-  // Estado inicial vazio
+  // Estado inicial vazio (apenas para arrays de dados do usuário)
   lancamentos = [];
   compras = [];
   recorrencias = [];
@@ -111,6 +119,10 @@ function carregarDados() {
   reservaMetas = [];
   categoriasPersonalizadas = [];
   orcamentos = [];
+
+  // 🔥 NUNCA RESETA AS CATEGORIAS PADRÃO AQUI!
+  // As categorias padrão já estão definidas no topo do arquivo
+  // e só devem ser alteradas pelo usuário via interface
 
   // Persiste o estado vazio imediatamente
   salvarTudo();

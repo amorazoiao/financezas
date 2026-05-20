@@ -353,12 +353,13 @@ function toggleDarkMode() {
 // configuracoes.js — Configurações, categorias, tema e backup/restore
 // =============================================================================
 
-// ... (todo o código anterior permanece igual)
+// ... (todo o código anterior permanece igual até a função resetAll)
 
 // ---------- Resetar dados ----------
 
 /**
  * Apaga todos os dados do aplicativo após confirmação.
+ * Esta é a versão CORRIGIDA que realmente limpa tudo.
  */
 function resetAll() {
   confirmar({
@@ -368,38 +369,64 @@ function resetAll() {
     textoBotao: 'Sim, apagar tudo',
     perigo: true,
   }, () => {
-    // Limpa TODOS os arrays globais
+    // 🔥 LIMPA TODOS OS ARRAYS GLOBAIS
     lancamentos = [];
     compras = [];
     recorrencias = [];
     cartoes = [];
     reservaMetas = [];
-    categoriasPersonalizadas = [];
     orcamentos = [];
     
-    // 🔥 CRÍTICO: Limpa também as categorias padrão (opcional, mas recomendado)
-    // Se quiser manter as categorias padrão, comente as linhas abaixo
-    // categoriasReceitaPadrao = ['Salário', 'Investimentos', 'Freelance', 'Presentes', 'Outros'];
-    // categoriasDespesaPadrao = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Saúde', 'Educação', 'Contas'];
+    // 🔥 RESETA CATEGORIAS PERSONALIZADAS
+    categoriasPersonalizadas = [];
     
-    // 🔥 CRÍTICO: Salva no localStorage
+    // 🔥 RESETA AS CATEGORIAS PADRÃO PARA OS VALORES ORIGINAIS
+    // Isso é importante porque o usuário pode ter renomeado ou removido categorias padrão
+    categoriasReceitaPadrao = ['Salário', 'Investimentos', 'Freelance', 'Presentes', 'Outros'];
+    categoriasDespesaPadrao = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Saúde', 'Educação', 'Contas'];
+    
+    // 🔥 LIMPA TODOS OS DADOS DO LOCALSTORAGE
+    // Primeiro, salva o estado vazio
     salvarTudo();
     
-    // 🔥 CRÍTICO: Força re-renderização completa da UI
+    // 🔥 FORÇA A LIMPEZA DO LOCALSTORAGE (garantia extra)
+    localStorage.removeItem(STORAGE_KEY);
+    
+    // 🔥 RECARREGA O ESTADO VAZIO
+    carregarDados();
+    
+    // 🔥 RESETA VARIÁVEIS DE UI (importante para evitar estados inconsistentes)
+    currentCartaoId = null;
+    currentFaturaMes = null;
+    currentFaturaAno = null;
+    pendingPagamentoInfo = null;
+    categoriaSearchTerm = '';
+    
+    // 🔥 FORÇA RE-RENDERIZAÇÃO COMPLETA DA UI
+    // Recria a estrutura de dados antes de renderizar
     renderTudo();
     
-    // Fecha o modal de configurações
+    // 🔥 RECONFIGURA OS FILTROS E SELETORES
+    atualizarSelectCategorias();
+    initFilter();
+    
+    // 🔥 FECHA O MODAL DE CONFIGURAÇÕES
     fecharModal('modal-config');
     
-    // Navega para o dashboard (opcional, mas boa prática)
+    // 🔥 NAVEGA PARA O DASHBOARD
     goToScreen('dashboard');
     
-    // Mostra feedback visual
-    showToast('✅ Todos os dados foram resetados!');
+    // 🔥 MOSTRA FEEDBACK VISUAL
+    showToast('✅ Todos os dados foram resetados com sucesso!');
+    
+    // 🔥 FORÇA UM RECARREGAMENTO DOS GRÁFICOS E MÉTRICAS
+    setTimeout(() => {
+      atualizarDashboard();
+      if (evolutionChart) evolutionChart.destroy();
+      renderEvolutionChart();
+    }, 100);
   });
 }
-
-// ... (resto do código permanece igual)
 
 // ---------- Helpers privados ----------
 

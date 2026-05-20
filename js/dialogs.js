@@ -222,25 +222,27 @@ function _configurarHeader({ icone = '', titulo, mensagem = '' }) {
 }
 
 function _configurarBotoes({ textoCancelar = 'Cancelar', textoConfirmar = 'Confirmar', perigo = false }) {
-  const btnCancel  = document.getElementById('dlg-btn-cancel');
-  const btnConfirm = document.getElementById('dlg-btn-confirm');
+  // Clona primeiro para remover todos os listeners anteriores
+  const btnCancelOld  = document.getElementById('dlg-btn-cancel');
+  const btnConfirmOld = document.getElementById('dlg-btn-confirm');
 
-  btnCancel.textContent  = textoCancelar;
-  btnConfirm.textContent = textoConfirmar;
-  btnConfirm.className   = `dlg-btn ${perigo ? 'dlg-btn-danger' : 'dlg-btn-confirm'}`;
+  const novoCancel  = btnCancelOld.cloneNode(false);
+  const novoConfirm = btnConfirmOld.cloneNode(false);
 
-  // Remove listeners antigos clonando e substituindo
-  const novoCancel = btnCancel.cloneNode(true);
-  const novoConfirm = btnConfirm.cloneNode(true);
-  btnCancel.parentNode.replaceChild(novoCancel, btnCancel);
-  btnConfirm.parentNode.replaceChild(novoConfirm, btnConfirm);
+  btnCancelOld.parentNode.replaceChild(novoCancel, btnCancelOld);
+  btnConfirmOld.parentNode.replaceChild(novoConfirm, btnConfirmOld);
 
-  // Adiciona novos listeners
+  // Atualiza texto e estilo nos novos nós
+  novoCancel.textContent  = textoCancelar;
+  novoConfirm.textContent = textoConfirmar;
+  novoConfirm.className   = `dlg-btn ${perigo ? 'dlg-btn-danger' : 'dlg-btn-confirm'}`;
+
+  // Registra os handlers nos novos nós
   novoCancel.addEventListener('click', (e) => {
     e.stopPropagation();
     _fecharDialog();
   });
-  
+
   novoConfirm.addEventListener('click', (e) => {
     e.stopPropagation();
     _executarCallback();
