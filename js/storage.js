@@ -1,7 +1,7 @@
 // =============================================================================
 // storage.js — Estado global da aplicação e persistência no localStorage
 // =============================================================================
-// Depende de: utils.js (para processarRecorrencias via renderTudo)
+// Depende de: utils.js
 // =============================================================================
 
 // ---------- Versão ----------
@@ -43,8 +43,11 @@ let currentFaturaAno = null;
 let currentCartaoId = null;
 let categoriaSearchTerm = '';
 
+// ---------- Cache para otimização de performance ----------
+let _cacheTodosLancamentos = null;
+let _cacheTimestamp = null;
+
 // ---------- Categorias padrão ----------
-/** Pode ser editada pelo usuário (mas não é persistida separadamente — fica em categoriasPersonalizadas) */
 let categoriasReceitaPadrao = ['Salário', 'Investimentos', 'Freelance', 'Presentes', 'Outros'];
 let categoriasDespesaPadrao = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Saúde', 'Educação', 'Contas'];
 
@@ -59,7 +62,6 @@ const mesesNomes = [
 /**
  * Serializa todo o estado da aplicação e salva no localStorage.
  */
-// No arquivo storage.js, verifique se a função está assim:
 function salvarTudo() {
   const dados = {
     version: APP_VERSION,
@@ -72,7 +74,7 @@ function salvarTudo() {
     orcamentos,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
-  console.log('[FinanÇezas] Dados salvos:', dados); // 🔥 ADICIONE ESTA LINHA PARA DEBUG
+  console.log('[FinanÇezas] Dados salvos com sucesso');
 }
 
 /**
@@ -80,7 +82,6 @@ function salvarTudo() {
  * Garante compatibilidade com dados da versão 8.x.
  * Caso não existam dados, inicializa arrays vazios.
  */
-
 function carregarDados() {
   const stored = localStorage.getItem(STORAGE_KEY);
 
@@ -88,30 +89,24 @@ function carregarDados() {
     try {
       const d = JSON.parse(stored);
 
-      // Aceita qualquer subversão da versão 8
       if (d.version && d.version.startsWith('8')) {
-        lancamentos            = d.lancamentos            || [];
-        compras                = d.compras                || [];
-        recorrencias           = d.recorrencias           || [];
-        cartoes                = d.cartoes                || [];
-        reservaMetas           = d.reservaMetas           || [];
+        lancamentos = d.lancamentos || [];
+        compras = d.compras || [];
+        recorrencias = d.recorrencias || [];
+        cartoes = d.cartoes || [];
+        reservaMetas = d.reservaMetas || [];
         categoriasPersonalizadas = d.categoriasPersonalizadas || [];
-        orcamentos             = d.orcamentos             || [];
+        orcamentos = d.orcamentos || [];
         
-        // 🔥 GARANTE QUE AS CATEGORIAS PADRÃO EXISTAM
-        // Se veio de um backup antigo que não tinha essas propriedades, mantém as atuais
-        if (!d.categoriasReceitaPadrao) {
-          // Mantém as categorias padrão atuais (não altera)
-          console.log('[FinanÇezas] Mantendo categorias padrão existentes');
-        }
+        console.log('[FinanÇezas] Dados carregados do localStorage');
         return;
       }
     } catch (e) {
-      console.error('[FinanÇezas] Erro ao carregar dados do localStorage:', e);
+      console.error('[FinanÇezas] Erro ao carregar dados:', e);
     }
   }
 
-  // Estado inicial vazio (apenas para arrays de dados do usuário)
+  // Estado inicial vazio
   lancamentos = [];
   compras = [];
   recorrencias = [];
@@ -120,12 +115,8 @@ function carregarDados() {
   categoriasPersonalizadas = [];
   orcamentos = [];
 
-  // 🔥 NUNCA RESETA AS CATEGORIAS PADRÃO AQUI!
-  // As categorias padrão já estão definidas no topo do arquivo
-  // e só devem ser alteradas pelo usuário via interface
-
-  // Persiste o estado vazio imediatamente
   salvarTudo();
+  console.log('[FinanÇezas] Estado inicial criado');
 }
 
 // ---------- Helpers de consulta ----------
@@ -159,8 +150,8 @@ function getCategoriasDespesa() {
  * @returns {number}
  */
 function calcularSaldoReal() {
-  const receitas   = lancamentos.filter(l => l.valor > 0 && l.tipo !== 'pagamento_fatura').reduce((s, l) => s + l.valor, 0);
-  const despesas   = lancamentos.filter(l => l.valor < 0 && l.tipo === 'despesa_avista').reduce((s, l) => s + Math.abs(l.valor), 0);
+  const receitas = lancamentos.filter(l => l.valor > 0 && l.tipo !== 'pagamento_fatura').reduce((s, l) => s + l.valor, 0);
+  const despesas = lancamentos.filter(l => l.valor < 0 && l.tipo === 'despesa_avista').reduce((s, l) => s + Math.abs(l.valor), 0);
   const pagamentos = lancamentos.filter(l => l.tipo === 'pagamento_fatura').reduce((s, l) => s + Math.abs(l.valor), 0);
   return receitas - despesas - pagamentos;
 }
@@ -184,24 +175,23 @@ function getTotalUtilizadoCartao(cartaoId) {
  *
  * @param {Object} compra
  * @param {Object} cartao
- * @param {number} indiceParcela  — 0 para a primeira parcela
+ * @param {number} indiceParcela — 0 para a primeira parcela
  * @returns {Date}
  */
-// No arquivo storage.js, verifique se a função está assim:
 function getDataVencimentoParcela(compra, cartao, indiceParcela) {
-  const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
-  const diaCompra  = dataCompra.getDate();
-  // 🔥 Esta é a regra correta!
-  const offsetMes  = diaCompra > cartao.fechamento ? 1 : 0;
-  const mesVenc    = dataCompra.getMonth() + offsetMes + indiceParcela;
-  return new Date(dataCompra.getFullYear(), mesVenc, cartao.vencimento);
+  const dataCompra = parseLocalDate(compra.dataCompra);
+  const diaCompra = dataCompra.getDate();
+  const offsetMes = diaCompra > cartao.fechamento ? 1 : 0;
+  const mesVenc = dataCompra.getMonth() + offsetMes + indiceParcela;
+  const ano = dataCompra.getFullYear();
+  return new Date(ano, mesVenc, cartao.vencimento);
 }
 
 /**
  * Monta a fatura de um cartão para um determinado mês/ano.
  * Inclui parcelas vencidas naquele período e pagamentos já realizados.
  * @param {Object} cartao
- * @param {number} mes   (0 = Janeiro)
+ * @param {number} mes (0 = Janeiro)
  * @param {number} ano
  * @returns {Object} { competencia, parcelas, valorTotal, valorPago, valorRestante, status }
  */
@@ -211,19 +201,15 @@ function getFaturaPorMes(cartao, mes, ano) {
 
   for (const compra of compras) {
     if (compra.cartaoId !== cartao.id) continue;
-    const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
-
-    // Se a compra foi feita APÓS o fechamento da fatura do mês da compra,
-    // a primeira parcela só entra na fatura do mês seguinte.
+    const dataCompra = parseLocalDate(compra.dataCompra);
     const diaCompra = dataCompra.getDate();
     const offsetMes = diaCompra > cartao.fechamento ? 1 : 0;
 
     for (let i = 0; i < compra.parcelas; i++) {
-      // Mês de vencimento = mês da compra + offset (se após fechamento) + índice da parcela
       const mesVenc = dataCompra.getMonth() + offsetMes + i;
       const dataVencimento = new Date(dataCompra.getFullYear(), mesVenc, cartao.vencimento);
 
-      const noMes  = dataVencimento.getMonth() === mes && dataVencimento.getFullYear() === ano;
+      const noMes = dataVencimento.getMonth() === mes && dataVencimento.getFullYear() === ano;
       const naoPaga = i >= compra.parcelasPagas;
 
       if (noMes && naoPaga) {
@@ -280,17 +266,27 @@ function getFaturaPorMes(cartao, mes, ano) {
 /**
  * Retorna todos os lançamentos mesclados com compras parceladas,
  * para exibição na UI (extrato, histórico).
+ * Com cache para otimização de performance (5 segundos).
+ * 
+ * @param {boolean} forceRefresh - Se true, ignora o cache e recria a lista
  * @returns {Array}
  */
-function obterTodosLancamentosParaUI() {
+function obterTodosLancamentosParaUI(forceRefresh = false) {
+  const now = Date.now();
+  
+  // Verifica se pode usar o cache
+  if (!forceRefresh && _cacheTodosLancamentos && (now - _cacheTimestamp < 5000)) {
+    return _cacheTodosLancamentos;
+  }
+  
+  // Constrói a lista completa
   const todos = [...lancamentos];
   
   for (const compra of compras) {
-    // 🔥 Para cada compra, precisamos encontrar em qual(is) mês(es) ela aparece
     const cartao = cartoes.find(c => c.id === compra.cartaoId);
     
     if (!cartao) {
-      // Fallback: usa data da compra
+      // Fallback: exibe como compra única na data da compra
       todos.push({
         id: compra.id,
         data: compra.dataCompra,
@@ -307,12 +303,8 @@ function obterTodosLancamentosParaUI() {
       continue;
     }
     
-    // 🔥 CORREÇÃO: Para cada parcela, calcula a data de vencimento REAL
-    // e exibe a transação nessa data, não na data da compra
-    const dataCompra = new Date(compra.dataCompra + 'T00:00:00');
+    const dataCompra = parseLocalDate(compra.dataCompra);
     const diaCompra = dataCompra.getDate();
-    
-    // Calcula o offset da primeira parcela (se compra após fechamento)
     const offsetPrimeiraParcela = diaCompra >= cartao.fechamento ? 1 : 0;
     
     // Para cada parcela NÃO PAGA, cria uma entrada na data de vencimento
@@ -320,11 +312,10 @@ function obterTodosLancamentosParaUI() {
       const mesVencimento = dataCompra.getMonth() + offsetPrimeiraParcela + (i - compra.parcelasPagas);
       const dataVencimento = new Date(dataCompra.getFullYear(), mesVencimento, cartao.vencimento);
       
-      // Só adiciona se a data de vencimento for válida
       if (!isNaN(dataVencimento.getTime())) {
         todos.push({
           id: `${compra.id}_parcela_${i + 1}`,
-          data: formatarDataLocal(dataVencimento), // 🔥 Data do VENCIMENTO, não da compra!
+          data: formatarDataLocal(dataVencimento),
           descricao: compra.descricao,
           categoria: compra.categoria,
           valor: -compra.valorParcela,
@@ -340,5 +331,19 @@ function obterTodosLancamentosParaUI() {
     }
   }
   
+  // Atualiza o cache
+  _cacheTodosLancamentos = todos;
+  _cacheTimestamp = now;
+  
   return todos;
+}
+
+/**
+ * Invalida o cache de lançamentos.
+ * Deve ser chamado após qualquer alteração nos dados.
+ */
+function invalidarCacheLancamentos() {
+  _cacheTodosLancamentos = null;
+  _cacheTimestamp = null;
+  console.log('[FinanÇezas] Cache de lançamentos invalidado');
 }

@@ -25,37 +25,74 @@ function gerarId(prefixo = '') {
  */
 function hojeLocal() {
   const h = new Date();
-  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+  const ano = h.getFullYear();
+  const mes = String(h.getMonth() + 1).padStart(2, '0');
+  const dia = String(h.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 }
 
 /**
- * Formata um objeto Date como YYYY-MM-DD sem conversão de fuso.
+ * Formata um objeto Date como YYYY-MM-DD no horário local.
  * @param {Date} d
  * @returns {string}
  */
 function formatarDataLocal(d) {
   if (!(d instanceof Date) || isNaN(d)) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 }
 
 /**
- * Converte string YYYY-MM-DD em Date local (sem UTC shift).
- * @param {string} s
+ * Converte string YYYY-MM-DD em Date no horário local (sem UTC shift).
+ * @param {string} s — formato "YYYY-MM-DD"
  * @returns {Date}
  */
 function parseLocalDate(s) {
-  const [a, m, d] = s.split('-').map(Number);
-  return new Date(a, m - 1, d);
+  if (!s) return new Date();
+  const [ano, mes, dia] = s.split('-').map(Number);
+  return new Date(ano, mes - 1, dia);
 }
 
 /**
  * Retorna o último dia do mês informado.
  * @param {number} ano
- * @param {number} mes  (0 = Janeiro)
+ * @param {number} mes (0 = Janeiro)
  * @returns {number}
  */
 function getUltimoDiaMes(ano, mes) {
   return new Date(ano, mes + 1, 0).getDate();
+}
+
+/**
+ * Ajusta um dia desejado para o último dia do mês se necessário.
+ * Útil para recorrências com dia 31 em meses de 30 dias.
+ * @param {number} ano
+ * @param {number} mes (0 = Janeiro)
+ * @param {number} diaDesejado
+ * @returns {number}
+ */
+function ajustarDiaParaUltimoDiaDoMes(ano, mes, diaDesejado) {
+  const ultimoDia = getUltimoDiaMes(ano, mes);
+  return Math.min(diaDesejado, ultimoDia);
+}
+
+/**
+ * Formata uma data para exibição amigável (ex: "20 mai")
+ * @param {Date|string} data
+ * @returns {string}
+ */
+function formatarDataAmigavel(data) {
+  let d = data;
+  if (typeof data === 'string') {
+    d = parseLocalDate(data);
+  }
+  return d.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: 'short',
+    timeZone: 'America/Sao_Paulo'
+  });
 }
 
 // ---------- Formatação de moeda ----------
@@ -64,9 +101,6 @@ function getUltimoDiaMes(ano, mes) {
  * Formata dígitos brutos no padrão BRL (sem prefixo R$).
  * Trata a string como centavos da direita para a esquerda.
  * Ex: "5" → "0,05" | "150" → "1,50" | "123456" → "1.234,56"
- * 
- * 🔥 CORREÇÃO: Agora formata corretamente com separador de milhar (ponto)
- * 
  * @param {string|number} v
  * @returns {string}
  */
@@ -78,7 +112,6 @@ function formatBRL(v) {
   const reais = Math.floor(num / 100);
   const cents = num % 100;
   
-  // 🔥 FORMATO CORRETO: separador de milhar com ponto
   const reaisStr = reais.toLocaleString('pt-BR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
@@ -90,27 +123,17 @@ function formatBRL(v) {
 /**
  * Converte string no formato BRL ("1.234,56") para number (1234.56).
  * Suporta tanto formato brasileiro quanto americano como fallback.
- * 
- * 🔥 CORREÇÃO: Agora lida corretamente com pontos de milhar
- * 
  * @param {string} v
  * @returns {number}
  */
 function currencyToNumber(v) {
   if (!v) return 0;
   
-  // Remove tudo que não é dígito, vírgula ou ponto
   let cleaned = v.toString().trim();
   
-  // Detecta o padrão: se tem vírgula, provavelmente é BRL
   if (cleaned.includes(',')) {
-    // Remove pontos de milhar (se existirem)
     cleaned = cleaned.replace(/\./g, '');
-    // Troca vírgula por ponto decimal
     cleaned = cleaned.replace(',', '.');
-  } else {
-    // Fallback: formato americano (apenas ponto decimal)
-    // Não faz nada, mantém como está
   }
   
   const number = parseFloat(cleaned);
@@ -120,9 +143,6 @@ function currencyToNumber(v) {
 /**
  * Formata um number como moeda BRL completa.
  * Ex: 1234.56 → "R$ 1.234,56" | -50 → "R$ -50,00"
- * 
- * 🔥 CORREÇÃO: Agora usa toLocaleString para garantir formato brasileiro correto
- * 
  * @param {number} v
  * @returns {string}
  */
@@ -156,7 +176,7 @@ function escapeHtml(s) {
 /**
  * Exibe um toast de notificação temporário.
  * @param {string} mensagem
- * @param {boolean} [erro=false]  Se true, exibe em vermelho.
+ * @param {boolean} [erro=false] Se true, exibe em vermelho.
  */
 function showToast(mensagem, erro = false) {
   const t = document.createElement('div');
@@ -172,18 +192,6 @@ function showToast(mensagem, erro = false) {
  * monetária da direita para a esquerda no padrão BRL.
  *
  * Comportamento:
- * - Ao focar: cursor vai instantaneamente para o final (imperceptível ao usuário)
- * - Ao digitar: acumula apenas dígitos, reformata e mantém cursor no final
- * - Ao colar: trata o conteúdo colado como dígitos brutos
- * - Backspace: remove o último dígito (efeito de "apagar da direita")
- */
-/**
- * Inicializa inputs com a classe `.money-input` para digitação
- * monetária da direita para a esquerda no padrão BRL.
- *
- * 🔥 CORREÇÃO: Agora exibe corretamente valores como "1.234,56" durante a digitação
- * 
- * Comportamento:
  * - Ao focar: cursor vai instantaneamente para o final
  * - Ao digitar: acumula apenas dígitos, reformata e mantém cursor no final
  * - Ao colar: trata o conteúdo colado como dígitos brutos
@@ -194,12 +202,10 @@ function setupMoneyInputs() {
     if (input.dataset.moneyInit) return;
     input.dataset.moneyInit = '1';
 
-    // Estado interno: apenas os dígitos puros (ex: "123456" = R$ 1.234,56)
     const rawValue = input.value.replace(/\D/g, '') || '0';
     input._digits = rawValue;
     input.value = formatBRL(rawValue);
 
-    // Cursor sempre no final
     function cursorFinal() {
       setTimeout(() => {
         try { 
@@ -213,12 +219,10 @@ function setupMoneyInputs() {
     input.addEventListener('mouseup',  cursorFinal);
     input.addEventListener('touchend', cursorFinal);
 
-    // Intercepta ANTES do browser alterar o campo
     input.addEventListener('keydown', function(e) {
       if (e.ctrlKey || e.metaKey || e.key === 'Tab' ||
           e.key === 'Enter' || e.key === 'Escape') return;
 
-      // Só trata dígitos e backspace — deixa o resto bloqueado
       if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
         e.preventDefault();
         return;
@@ -237,7 +241,6 @@ function setupMoneyInputs() {
       cursorFinal();
     });
 
-    // Mobile: o keydown nem sempre dispara — usa beforeinput como fallback
     input.addEventListener('beforeinput', function(e) {
       e.preventDefault();
 
@@ -254,7 +257,6 @@ function setupMoneyInputs() {
       cursorFinal();
     });
 
-    // Paste
     input.addEventListener('paste', function(e) {
       e.preventDefault();
       const colado = (e.clipboardData || window.clipboardData).getData('text');

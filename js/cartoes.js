@@ -1,10 +1,31 @@
 // =============================================================================
 // cartoes.js — Cartões de crédito, faturas, compras parceladas e pagamentos
 // =============================================================================
-// Depende de: utils.js, storage.js
+// Depende de: utils.js, storage.js, dialogs.js
 // =============================================================================
 
+/**
+ * Cores cíclicas para os cards de cartão no carrossel.
+ * @constant {string[]}
+ */
 const CORES_CARTAO = ['card-purple', 'card-black', 'card-gold', 'card-blue'];
+
+// ---------- Validações ----------
+
+/**
+ * Valida se as datas de fechamento e vencimento do cartão são consistentes.
+ * O fechamento deve ser ANTES do vencimento.
+ * @param {number} fechamento - Dia do fechamento (1-31)
+ * @param {number} vencimento - Dia do vencimento (1-31)
+ * @returns {boolean} - true se válido, false caso contrário
+ */
+function validarDatasCartao(fechamento, vencimento) {
+  if (fechamento >= vencimento) {
+    showToast('⚠️ O fechamento deve ser ANTES do vencimento', true);
+    return false;
+  }
+  return true;
+}
 
 // ---------- Carrossel de cartões ----------
 
@@ -26,22 +47,22 @@ function renderCartoesCarrossel() {
 
   container.innerHTML = '';
 
-  cartoes.forEach((c, i) => {
-    const usado = getTotalUtilizadoCartao(c.id);
-    const disponivel = Math.max(0, c.limite - usado);
-    const corClasse = CORES_CARTAO[i % CORES_CARTAO.length];
-    const selecionado = currentCartaoId === c.id ? 'selected' : '';
+  cartoes.forEach((cartao, index) => {
+    const usado = getTotalUtilizadoCartao(cartao.id);
+    const disponivel = Math.max(0, cartao.limite - usado);
+    const corClasse = CORES_CARTAO[index % CORES_CARTAO.length];
+    const selecionado = currentCartaoId === cartao.id ? 'selected' : '';
 
     container.innerHTML += `
       <div class="cartao-bank-card ${corClasse} ${selecionado}"
-           onclick="selecionarCartao('${c.id}')"
-           id="cartao-card-${c.id}">
+           onclick="selecionarCartao('${cartao.id}')"
+           id="cartao-card-${cartao.id}">
         <div class="cartao-bank-header">
-          <span class="cartao-bank-nome">${escapeHtml(c.nome)}</span>
+          <span class="cartao-bank-nome">${escapeHtml(cartao.nome)}</span>
           <span class="cartao-bank-bandeira">💳</span>
         </div>
         <div class="cartao-bank-chip"></div>
-        <div class="cartao-bank-numero">•••• ${String(c.id).slice(-4)}</div>
+        <div class="cartao-bank-numero">•••• ${String(cartao.id).slice(-4)}</div>
         <div class="cartao-bank-info">
           <div class="cartao-bank-info-item">
             <span class="cartao-bank-info-label">Disponível</span>
@@ -49,12 +70,12 @@ function renderCartoesCarrossel() {
           </div>
           <div class="cartao-bank-info-item">
             <span class="cartao-bank-info-label">Vencimento</span>
-            <span class="cartao-bank-info-value">Dia ${c.vencimento}</span>
+            <span class="cartao-bank-info-value">Dia ${cartao.vencimento}</span>
           </div>
         </div>
         <div class="cartao-bank-actions" onclick="event.stopPropagation();">
-          <button onclick="event.stopPropagation(); editarCartao('${c.id}')" title="Editar">✏️</button>
-          <button onclick="event.stopPropagation(); excluirCartaoPorId('${c.id}')" title="Excluir">🗑️</button>
+          <button onclick="editarCartao('${cartao.id}')" title="Editar">✏️</button>
+          <button onclick="excluirCartaoPorId('${cartao.id}')" title="Excluir">🗑️</button>
         </div>
       </div>`;
   });
@@ -62,15 +83,19 @@ function renderCartoesCarrossel() {
 
 /**
  * Seleciona um cartão e exibe seus detalhes e fatura do mês atual.
- * @param {string} id
+ * @param {string} cartaoId - ID do cartão a ser selecionado.
  */
-function selecionarCartao(id) {
-  currentCartaoId = id;
-  currentFaturaMes = new Date().getMonth();
-  currentFaturaAno = new Date().getFullYear();
+function selecionarCartao(cartaoId) {
+  currentCartaoId = cartaoId;
+  const hoje = new Date();
+  currentFaturaMes = hoje.getMonth();
+  currentFaturaAno = hoje.getFullYear();
 
-  document.getElementById('cartao-detail-section').style.display = 'block';
-  document.getElementById('nenhum-cartao-selecionado').style.display = 'none';
+  const detailSection = document.getElementById('cartao-detail-section');
+  const emptyStateDiv = document.getElementById('nenhum-cartao-selecionado');
+
+  if (detailSection) detailSection.style.display = 'block';
+  if (emptyStateDiv) emptyStateDiv.style.display = 'none';
 
   renderDetalhesCartao();
   renderOperacoesFatura();
@@ -82,30 +107,33 @@ function selecionarCartao(id) {
  * Renderiza o card de detalhes (limite, utilização, fatura) do cartão selecionado.
  */
 function renderDetalhesCartao() {
-  const c = cartoes.find(x => x.id === currentCartaoId);
-  if (!c) return;
+  const cartao = cartoes.find(c => c.id === currentCartaoId);
+  if (!cartao) return;
 
-  const usado = getTotalUtilizadoCartao(c.id);
-  const pct   = c.limite > 0 ? (usado / c.limite * 100) : 0;
+  const usado = getTotalUtilizadoCartao(cartao.id);
+  const percentual = cartao.limite > 0 ? (usado / cartao.limite * 100) : 0;
 
-  document.getElementById('cartao-detail-section').innerHTML = `
+  const detailSection = document.getElementById('cartao-detail-section');
+  if (!detailSection) return;
+
+  detailSection.innerHTML = `
     <div class="cartao-resumo-card">
       <div class="cartao-limite-header">
         <span class="cartao-limite-titulo">Limite Disponível</span>
-        <span class="cartao-limite-disponivel" id="detail-disponivel">${formatMoney(Math.max(0, c.limite - usado))}</span>
+        <span class="cartao-limite-disponivel" id="detail-disponivel">${formatMoney(Math.max(0, cartao.limite - usado))}</span>
       </div>
       <div class="limite-progress-container">
         <div class="limite-labels">
           <span>Utilizado: <strong id="detail-utilizado">${formatMoney(usado)}</strong></span>
-          <span id="detail-percentual">${pct.toFixed(1)}%</span>
+          <span id="detail-percentual">${percentual.toFixed(1)}%</span>
         </div>
         <div class="limite-bar-bg">
-          <div class="limite-bar-fill safe" id="detail-limite-bar" style="width:${Math.min(pct, 100)}%;"></div>
+          <div class="limite-bar-fill ${_getStatusClass(percentual)}" id="detail-limite-bar" style="width:${Math.min(percentual, 100)}%;"></div>
         </div>
       </div>
       <div class="limite-detalhes-grid">
-        <div class="limite-detalhe-item"><div class="label">Limite Total</div><div class="value" id="detail-limite-total">${formatMoney(c.limite)}</div></div>
-        <div class="limite-detalhe-item"><div class="label">Vencimento</div><div class="value" id="detail-vencimento">Dia ${c.vencimento}</div></div>
+        <div class="limite-detalhe-item"><div class="label">Limite Total</div><div class="value" id="detail-limite-total">${formatMoney(cartao.limite)}</div></div>
+        <div class="limite-detalhe-item"><div class="label">Vencimento</div><div class="value" id="detail-vencimento">Dia ${cartao.vencimento}</div></div>
       </div>
 
       <!-- Navegação de fatura -->
@@ -141,36 +169,48 @@ function renderDetalhesCartao() {
  * Renderiza as parcelas da fatura do mês/ano selecionado e atualiza os totais.
  */
 function renderOperacoesFatura() {
-  const c = cartoes.find(x => x.id === currentCartaoId);
-  if (!c) return;
+  const cartao = cartoes.find(c => c.id === currentCartaoId);
+  if (!cartao) return;
 
-  const fatura = getFaturaPorMes(c, currentFaturaMes, currentFaturaAno);
+  const fatura = getFaturaPorMes(cartao, currentFaturaMes, currentFaturaAno);
   const statusMap = {
-    aberta:  { text: 'ABERTA',  cls: 'aberta' },
+    aberta: { text: 'ABERTA', cls: 'aberta' },
     fechada: { text: 'FECHADA', cls: 'fechada' },
     vencida: { text: 'VENCIDA', cls: 'vencida' },
-    paga:    { text: 'PAGA',    cls: 'paga' },
+    paga: { text: 'PAGA', cls: 'paga' },
   };
   const status = statusMap[fatura.status] || statusMap.aberta;
 
-  document.getElementById('fatura-mes-display-new').innerHTML = `${mesesNomes[currentFaturaMes]} ${currentFaturaAno}`;
+  const mesDisplay = document.getElementById('fatura-mes-display-new');
+  if (mesDisplay) mesDisplay.innerHTML = `${mesesNomes[currentFaturaMes]} ${currentFaturaAno}`;
 
   const statusSpan = document.getElementById('fatura-status-badge');
-  if (statusSpan) { statusSpan.textContent = status.text; statusSpan.className = `fatura-status-badge ${status.cls}`; }
+  if (statusSpan) {
+    statusSpan.textContent = status.text;
+    statusSpan.className = `fatura-status-badge ${status.cls}`;
+  }
 
-  document.getElementById('resumo-total-fatura').textContent = formatMoney(fatura.valorTotal);
-  document.getElementById('resumo-pago').textContent         = formatMoney(fatura.valorPago);
-  document.getElementById('resumo-aberto').textContent       = formatMoney(fatura.valorRestante);
+  const totalSpan = document.getElementById('resumo-total-fatura');
+  const pagoSpan = document.getElementById('resumo-pago');
+  const abertoSpan = document.getElementById('resumo-aberto');
 
-  const btn = document.getElementById('btn-pagar-fatura');
-  if (fatura.valorTotal === 0 || fatura.valorRestante <= 0) {
-    btn.style.display = 'none';
-  } else {
-    btn.style.display = 'block';
-    btn.textContent = `💳 Pagar Fatura • ${formatMoney(fatura.valorRestante)}`;
+  if (totalSpan) totalSpan.textContent = formatMoney(fatura.valorTotal);
+  if (pagoSpan) pagoSpan.textContent = formatMoney(fatura.valorPago);
+  if (abertoSpan) abertoSpan.textContent = formatMoney(fatura.valorRestante);
+
+  const btnPagar = document.getElementById('btn-pagar-fatura');
+  if (btnPagar) {
+    if (fatura.valorTotal === 0 || fatura.valorRestante <= 0) {
+      btnPagar.style.display = 'none';
+    } else {
+      btnPagar.style.display = 'block';
+      btnPagar.textContent = `💳 Pagar Fatura • ${formatMoney(fatura.valorRestante)}`;
+    }
   }
 
   const container = document.getElementById('operacoes-list');
+  if (!container) return;
+
   if (fatura.parcelas.length === 0) {
     container.innerHTML = '<div class="empty-state-modern">📭 Nenhuma operação</div>';
     return;
@@ -179,8 +219,8 @@ function renderOperacoesFatura() {
   let html = '';
   let ultimaData = '';
 
-  for (const p of fatura.parcelas) {
-    const dataLabel = new Date(p.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
+  for (const parcela of fatura.parcelas) {
+    const dataLabel = new Date(parcela.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
     if (dataLabel !== ultimaData) {
       html += `<div class="operacao-section-header">${dataLabel}</div>`;
       ultimaData = dataLabel;
@@ -189,12 +229,12 @@ function renderOperacoesFatura() {
       <div class="operacao-item">
         <div class="operacao-icon default">💳</div>
         <div class="operacao-details">
-          <div class="operacao-name">${escapeHtml(p.descricao)}</div>
-          <div class="operacao-meta">${escapeHtml(p.categoria)} • Parcela ${p.parcelaNumero}/${p.totalParcelas}</div>
+          <div class="operacao-name">${escapeHtml(parcela.descricao)}</div>
+          <div class="operacao-meta">${escapeHtml(parcela.categoria)} • Parcela ${parcela.parcelaNumero}/${parcela.totalParcelas}</div>
         </div>
         <div class="operacao-right">
-          <div class="operacao-valor">- ${formatMoney(p.valor)}</div>
-          <span class="operacao-status ${p.paga ? 'pago' : 'pendente'}">${p.paga ? 'Pago' : 'Pendente'}</span>
+          <div class="operacao-valor">- ${formatMoney(parcela.valor)}</div>
+          <span class="operacao-status ${parcela.paga ? 'pago' : 'pendente'}">${parcela.paga ? 'Pago' : 'Pendente'}</span>
         </div>
       </div>`;
   }
@@ -203,16 +243,24 @@ function renderOperacoesFatura() {
 
 /**
  * Navega para o mês anterior ou próximo na visualização de fatura.
- * @param {-1|1} direcao
+ * @param {-1|1} direcao - Direção da navegação (-1 para anterior, 1 para próximo).
  */
 function navegarMesFatura(direcao) {
   if (!currentCartaoId) return;
-  let m = currentFaturaMes + direcao;
-  let a = currentFaturaAno;
-  if (m < 0)  { m = 11; a--; }
-  if (m > 11) { m = 0;  a++; }
-  currentFaturaMes = m;
-  currentFaturaAno = a;
+
+  let mes = currentFaturaMes + direcao;
+  let ano = currentFaturaAno;
+
+  if (mes < 0) {
+    mes = 11;
+    ano--;
+  } else if (mes > 11) {
+    mes = 0;
+    ano++;
+  }
+
+  currentFaturaMes = mes;
+  currentFaturaAno = ano;
   renderOperacoesFatura();
 }
 
@@ -223,28 +271,44 @@ function navegarMesFatura(direcao) {
  * Valida saldo disponível antes de abrir.
  */
 function prepararPagamentoFaturaAtual() {
-  if (!currentCartaoId) { showToast('Selecione um cartão', true); return; }
+  if (!currentCartaoId) {
+    showToast('Selecione um cartão', true);
+    return;
+  }
 
-  const c = cartoes.find(x => x.id === currentCartaoId);
-  if (!c) return;
+  const cartao = cartoes.find(c => c.id === currentCartaoId);
+  if (!cartao) return;
 
-  const f = getFaturaPorMes(c, currentFaturaMes, currentFaturaAno);
-  if (!f || f.valorRestante <= 0) { showToast('Fatura sem valor pendente', true); return; }
-  if (calcularSaldoReal() < f.valorRestante) { showToast('Saldo insuficiente!', true); return; }
+  const fatura = getFaturaPorMes(cartao, currentFaturaMes, currentFaturaAno);
+  if (!fatura || fatura.valorRestante <= 0) {
+    showToast('Fatura sem valor pendente', true);
+    return;
+  }
+
+  if (calcularSaldoReal() < fatura.valorRestante) {
+    showToast('Saldo insuficiente!', true);
+    return;
+  }
 
   pendingPagamentoInfo = {
-    cartao: c,
-    fatura: f,
+    cartao: cartao,
+    fatura: fatura,
     competencia: { mes: currentFaturaMes, ano: currentFaturaAno },
   };
 
-  document.getElementById('pagamento-info').innerHTML = `
-    Fatura: ${mesesNomes[currentFaturaMes]}/${currentFaturaAno}<br>
-    Total: ${formatMoney(f.valorTotal)}<br>
-    Restante: ${formatMoney(f.valorRestante)}`;
+  const pagamentoInfo = document.getElementById('pagamento-info');
+  if (pagamentoInfo) {
+    pagamentoInfo.innerHTML = `
+      Fatura: ${mesesNomes[currentFaturaMes]}/${currentFaturaAno}<br>
+      Total: ${formatMoney(fatura.valorTotal)}<br>
+      Restante: ${formatMoney(fatura.valorRestante)}`;
+  }
 
-  document.getElementById('pagamento-valor').value = formatBRL(f.valorRestante.toString());
-  document.getElementById('modal-pagamento').style.display = 'flex';
+  const valorInput = document.getElementById('pagamento-valor');
+  if (valorInput) valorInput.value = formatBRL(fatura.valorRestante.toString());
+
+  const modal = document.getElementById('modal-pagamento');
+  if (modal) modal.style.display = 'flex';
 }
 
 /**
@@ -252,23 +316,43 @@ function prepararPagamentoFaturaAtual() {
  * Marca parcelas como pagas e registra o lançamento de débito.
  */
 function confirmarPagamento() {
-  if (!pendingPagamentoInfo) return;
+  if (!pendingPagamentoInfo) {
+    showToast('Nenhum pagamento pendente', true);
+    return;
+  }
 
   const { cartao, fatura, competencia } = pendingPagamentoInfo;
-  let valor = currencyToNumber(document.getElementById('pagamento-valor').value);
+  const valorPagamento = currencyToNumber(document.getElementById('pagamento-valor')?.value);
 
-  if (isNaN(valor) || valor <= 0)  { showToast('Valor inválido', true); return; }
-  if (valor > fatura.valorRestante) { showToast(`Máximo: ${formatMoney(fatura.valorRestante)}`, true); return; }
-  if (calcularSaldoReal() < valor)  { showToast('Saldo insuficiente!', true); return; }
+  if (isNaN(valorPagamento) || valorPagamento <= 0) {
+    showToast('Valor inválido', true);
+    return;
+  }
+
+  if (valorPagamento > fatura.valorRestante) {
+    showToast(`Máximo: ${formatMoney(fatura.valorRestante)}`, true);
+    return;
+  }
+
+  if (calcularSaldoReal() < valorPagamento) {
+    showToast('Saldo insuficiente!', true);
+    return;
+  }
 
   // Marca parcelas como pagas na ordem
-  let restante = valor;
+  let restante = valorPagamento;
   for (const compra of compras) {
     if (compra.cartaoId !== cartao.id) continue;
+
     for (let i = compra.parcelasPagas; i < compra.parcelas; i++) {
       if (restante <= 0) break;
-      const dataVenc = new Date(compra.dataCompra);
-      dataVenc.setMonth(new Date(compra.dataCompra).getMonth() + i);
+
+      const dataCompra = parseLocalDate(compra.dataCompra);
+      const diaCompra = dataCompra.getDate();
+      const offsetMes = diaCompra >= cartao.fechamento ? 1 : 0;
+      const mesVencimento = dataCompra.getMonth() + offsetMes + i;
+      const dataVenc = new Date(dataCompra.getFullYear(), mesVencimento, cartao.vencimento);
+
       if (dataVenc.getMonth() === competencia.mes && dataVenc.getFullYear() === competencia.ano) {
         compra.parcelasPagas++;
         restante -= compra.valorParcela;
@@ -282,17 +366,22 @@ function confirmarPagamento() {
     data: hojeLocal(),
     descricao: `Pagamento fatura ${cartao.nome}`,
     categoria: 'Pagamento Fatura',
-    valor: -valor,
+    valor: -valorPagamento,
     tipo: 'pagamento_fatura',
     cartaoId: cartao.id,
     competenciaPaga: competencia,
   });
 
+  // Invalida o cache após alterações
+  if (typeof invalidarCacheLancamentos === 'function') {
+    invalidarCacheLancamentos();
+  }
+
   salvarTudo();
   renderTudo();
   fecharModal('modal-pagamento');
   pendingPagamentoInfo = null;
-  showToast(`✅ Pagamento de ${formatMoney(valor)} realizado!`);
+  showToast(`✅ Pagamento de ${formatMoney(valorPagamento)} realizado!`);
 }
 
 // ---------- CRUD de cartões ----------
@@ -301,15 +390,23 @@ function confirmarPagamento() {
  * Abre o modal de criação de novo cartão com campos limpos.
  */
 function abrirModalCartao() {
-  document.getElementById('cartao-editar-id').value  = '';
-  document.getElementById('cartao-nome').value        = '';
-  document.getElementById('cartao-limite').value      = '';
-  document.getElementById('cartao-fechamento').value  = '';
-  document.getElementById('cartao-vencimento').value  = '';
-  document.getElementById('modal-cartao').style.display = 'flex';
+  const idInput = document.getElementById('cartao-editar-id');
+  const nomeInput = document.getElementById('cartao-nome');
+  const limiteInput = document.getElementById('cartao-limite');
+  const fechamentoInput = document.getElementById('cartao-fechamento');
+  const vencimentoInput = document.getElementById('cartao-vencimento');
+
+  if (idInput) idInput.value = '';
+  if (nomeInput) nomeInput.value = '';
+  if (limiteInput) limiteInput.value = '';
+  if (fechamentoInput) fechamentoInput.value = '';
+  if (vencimentoInput) vencimentoInput.value = '';
+
+  const modal = document.getElementById('modal-cartao');
+  if (modal) modal.style.display = 'flex';
+
   setTimeout(() => {
-    const li = document.getElementById('cartao-limite');
-    if (li && !li.value) li.value = '0,00';
+    if (limiteInput && !limiteInput.value) limiteInput.value = '0,00';
   }, 50);
 }
 
@@ -317,52 +414,89 @@ function abrirModalCartao() {
  * Salva um cartão novo ou atualiza um existente.
  */
 function salvarCartao() {
-  const id         = document.getElementById('cartao-editar-id').value;
-  const nome       = document.getElementById('cartao-nome').value.trim();
-  const limite     = currencyToNumber(document.getElementById('cartao-limite').value);
-  const fechamento = parseInt(document.getElementById('cartao-fechamento').value);
-  const vencimento = parseInt(document.getElementById('cartao-vencimento').value);
+  const id = document.getElementById('cartao-editar-id')?.value;
+  const nome = document.getElementById('cartao-nome')?.value.trim();
+  const limite = currencyToNumber(document.getElementById('cartao-limite')?.value);
+  const fechamento = parseInt(document.getElementById('cartao-fechamento')?.value);
+  const vencimento = parseInt(document.getElementById('cartao-vencimento')?.value);
 
-  if (!nome || isNaN(limite) || !fechamento || !vencimento) { showToast('Preencha todos os campos', true); return; }
+  if (!nome || isNaN(limite) || isNaN(fechamento) || isNaN(vencimento)) {
+    showToast('Preencha todos os campos', true);
+    return;
+  }
+
+  // 🔥 VALIDAÇÃO DAS DATAS DO CARTÃO
+  if (!validarDatasCartao(fechamento, vencimento)) {
+    return;
+  }
 
   if (id) {
+    // Edição
     const idx = cartoes.findIndex(c => c.id === id);
-    if (idx !== -1) cartoes[idx] = { ...cartoes[idx], nome, limite, fechamento, vencimento };
-    showToast('Cartão atualizado!');
+    if (idx !== -1) {
+      cartoes[idx] = { ...cartoes[idx], nome, limite, fechamento, vencimento };
+      showToast('Cartão atualizado!');
+    } else {
+      showToast('Erro: cartão não encontrado', true);
+      return;
+    }
   } else {
-    cartoes.push({ id: gerarId('cartao'), nome, limite, fechamento, vencimento });
+    // Criação
+    cartoes.push({
+      id: gerarId('cartao'),
+      nome,
+      limite,
+      fechamento,
+      vencimento,
+    });
     showToast('Cartão cadastrado!');
+  }
+
+  // Invalida o cache após alterações
+  if (typeof invalidarCacheLancamentos === 'function') {
+    invalidarCacheLancamentos();
   }
 
   salvarTudo();
   renderTudo();
   fecharModal('modal-cartao');
   renderCartoesCarrossel();
-  if (currentCartaoId && cartoes.find(c => c.id === currentCartaoId)) selecionarCartao(currentCartaoId);
+
+  if (currentCartaoId && cartoes.find(c => c.id === currentCartaoId)) {
+    selecionarCartao(currentCartaoId);
+  }
 }
 
 /**
  * Abre o modal de edição preenchendo os campos com dados do cartão.
- * @param {string} id
+ * @param {string} cartaoId - ID do cartão a ser editado.
  */
-function editarCartao(id) {
-  const c = cartoes.find(x => x.id === id);
-  if (!c) return;
+function editarCartao(cartaoId) {
+  const cartao = cartoes.find(c => c.id === cartaoId);
+  if (!cartao) return;
 
-  document.getElementById('cartao-editar-id').value  = c.id;
-  document.getElementById('cartao-nome').value        = c.nome;
-  document.getElementById('cartao-limite').value      = formatBRL(c.limite.toString());
-  document.getElementById('cartao-fechamento').value  = c.fechamento;
-  document.getElementById('cartao-vencimento').value  = c.vencimento;
-  document.getElementById('modal-cartao').style.display = 'flex';
+  const idInput = document.getElementById('cartao-editar-id');
+  const nomeInput = document.getElementById('cartao-nome');
+  const limiteInput = document.getElementById('cartao-limite');
+  const fechamentoInput = document.getElementById('cartao-fechamento');
+  const vencimentoInput = document.getElementById('cartao-vencimento');
+
+  if (idInput) idInput.value = cartao.id;
+  if (nomeInput) nomeInput.value = cartao.nome;
+  if (limiteInput) limiteInput.value = formatBRL(cartao.limite.toString());
+  if (fechamentoInput) fechamentoInput.value = cartao.fechamento;
+  if (vencimentoInput) vencimentoInput.value = cartao.vencimento;
+
+  const modal = document.getElementById('modal-cartao');
+  if (modal) modal.style.display = 'flex';
 }
 
 /**
- * Remove um cartão e todas as compras associadas a ele.
- * @param {string} id
+ * Remove um cartão e todas as compras associadas a ele após confirmação.
+ * @param {string} cartaoId - ID do cartão a ser excluído.
  */
-function excluirCartaoPorId(id) {
-  const cartao = cartoes.find(c => c.id === id);
+function excluirCartaoPorId(cartaoId) {
+  const cartao = cartoes.find(c => c.id === cartaoId);
   if (!cartao) return;
 
   confirmar({
@@ -372,13 +506,21 @@ function excluirCartaoPorId(id) {
     textoBotao: 'Excluir',
     perigo: true,
   }, () => {
-    compras = compras.filter(c => c.cartaoId !== id);
-    cartoes = cartoes.filter(c => c.id !== id);
+    compras = compras.filter(c => c.cartaoId !== cartaoId);
+    cartoes = cartoes.filter(c => c.id !== cartaoId);
 
-    if (currentCartaoId === id) {
+    if (currentCartaoId === cartaoId) {
       currentCartaoId = null;
-      document.getElementById('cartao-detail-section').style.display = 'none';
-      document.getElementById('nenhum-cartao-selecionado').style.display = 'block';
+      const detailSection = document.getElementById('cartao-detail-section');
+      const emptyStateDiv = document.getElementById('nenhum-cartao-selecionado');
+
+      if (detailSection) detailSection.style.display = 'none';
+      if (emptyStateDiv) emptyStateDiv.style.display = 'block';
+    }
+
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
     }
 
     salvarTudo();
@@ -395,24 +537,36 @@ function excluirCartaoPorId(id) {
  * Exige pelo menos um cartão cadastrado.
  */
 function abrirModalCompra() {
-  if (cartoes.length === 0) { showToast('Cadastre um cartão primeiro', true); return; }
+  if (cartoes.length === 0) {
+    showToast('Cadastre um cartão primeiro', true);
+    return;
+  }
 
-  const sel = document.getElementById('compra-cartao');
-  sel.innerHTML = '<option value="">Selecione</option>';
-  cartoes.forEach(c => sel.add(new Option(`${c.nome} (${formatMoney(c.limite)})`, c.id)));
+  const cartaoSelect = document.getElementById('compra-cartao');
+  if (cartaoSelect) {
+    cartaoSelect.innerHTML = '<option value="">Selecione</option>';
+    cartoes.forEach(c => cartaoSelect.add(new Option(`${c.nome} (${formatMoney(c.limite)})`, c.id)));
+  }
 
-  document.getElementById('compra-desc').value  = '';
-  document.getElementById('compra-valor').value = '';
-  document.getElementById('compra-data').value  = hojeLocal();
+  const descInput = document.getElementById('compra-desc');
+  const valorInput = document.getElementById('compra-valor');
+  const dataInput = document.getElementById('compra-data');
+  const categoriaSelect = document.getElementById('compra-categoria');
 
-  const cc = document.getElementById('compra-categoria');
-  cc.innerHTML = '<option value="">Selecione</option>';
-  getCategoriasDespesa().forEach(c => cc.add(new Option(c, c)));
+  if (descInput) descInput.value = '';
+  if (valorInput) valorInput.value = '';
+  if (dataInput) dataInput.value = hojeLocal();
 
-  document.getElementById('modal-compra').style.display = 'flex';
+  if (categoriaSelect) {
+    categoriaSelect.innerHTML = '<option value="">Selecione</option>';
+    getCategoriasDespesa().forEach(c => categoriaSelect.add(new Option(c, c)));
+  }
+
+  const modal = document.getElementById('modal-compra');
+  if (modal) modal.style.display = 'flex';
+
   setTimeout(() => {
-    const vi = document.getElementById('compra-valor');
-    if (vi && !vi.value) vi.value = '0,00';
+    if (valorInput && !valorInput.value) valorInput.value = '0,00';
   }, 50);
 }
 
@@ -420,27 +574,30 @@ function abrirModalCompra() {
  * Salva uma nova compra parcelada.
  */
 function salvarCompra() {
-  const cartaoId   = document.getElementById('compra-cartao').value;
-  const desc       = document.getElementById('compra-desc').value.trim();
-  const valorTotal = currencyToNumber(document.getElementById('compra-valor').value);
-  const parcelas   = parseInt(document.getElementById('compra-parcelas').value);
-  const dataCompra = document.getElementById('compra-data').value;
-  const categoria  = document.getElementById('compra-categoria').value;
+  const cartaoId = document.getElementById('compra-cartao')?.value;
+  const descricao = document.getElementById('compra-desc')?.value.trim();
+  const valorTotal = currencyToNumber(document.getElementById('compra-valor')?.value);
+  const parcelas = parseInt(document.getElementById('compra-parcelas')?.value);
+  const dataCompra = document.getElementById('compra-data')?.value;
+  const categoria = document.getElementById('compra-categoria')?.value;
 
-  if (!cartaoId || !desc || isNaN(valorTotal) || valorTotal <= 0 || !dataCompra || !categoria) {
+  if (!cartaoId || !descricao || isNaN(valorTotal) || valorTotal <= 0 || !dataCompra || !categoria) {
     showToast('Preencha todos os campos', true);
     return;
   }
 
   const cartao = cartoes.find(c => c.id === cartaoId);
-  if (!cartao) { showToast('Cartão não encontrado', true); return; }
+  if (!cartao) {
+    showToast('Cartão não encontrado', true);
+    return;
+  }
 
   const valorParcela = Math.round((valorTotal / parcelas) * 100) / 100;
 
   compras.push({
     id: gerarId('compra'),
     dataCompra,
-    descricao: desc,
+    descricao: descricao,
     categoria,
     valorTotal,
     parcelas,
@@ -449,17 +606,24 @@ function salvarCompra() {
     parcelasPagas: 0,
   });
 
+  // Invalida o cache após alterações
+  if (typeof invalidarCacheLancamentos === 'function') {
+    invalidarCacheLancamentos();
+  }
+
   salvarTudo();
   renderTudo();
   fecharModal('modal-compra');
   showToast(`✅ Compra de ${formatMoney(valorTotal)} em ${parcelas}x lançada!`);
 
-  if (currentCartaoId === cartao.id || !currentCartaoId) selecionarCartao(cartao.id);
+  if (currentCartaoId === cartao.id || !currentCartaoId) {
+    selecionarCartao(cartao.id);
+  }
 }
 
 /**
- * Remove uma compra e todas as suas parcelas.
- * @param {string} compraId
+ * Remove uma compra e todas as suas parcelas após confirmação.
+ * @param {string} compraId - ID da compra a ser excluída.
  */
 function excluirCompra(compraId) {
   const compra = compras.find(c => c.id === compraId);
@@ -473,8 +637,28 @@ function excluirCompra(compraId) {
     perigo: true,
   }, () => {
     compras = compras.filter(c => c.id !== compraId);
+    
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
+    }
+    
     salvarTudo();
     renderTudo();
     showToast('Compra removida!');
   });
+}
+
+// ---------- Helpers privados ----------
+
+/**
+ * Retorna a classe CSS para a barra de progresso baseada no percentual usado.
+ * @param {number} percentual - Percentual utilizado do limite (0-100).
+ * @returns {string} Classe CSS: 'safe', 'warning' ou 'danger'.
+ * @private
+ */
+function _getStatusClass(percentual) {
+  if (percentual >= 90) return 'danger';
+  if (percentual >= 70) return 'warning';
+  return 'safe';
 }

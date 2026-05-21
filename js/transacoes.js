@@ -1,39 +1,46 @@
 // =============================================================================
 // transacoes.js — Modal de receitas/despesas, CRUD de lançamentos e reserva
 // =============================================================================
-// Depende de: utils.js, storage.js, recorrencias.js
+// Depende de: utils.js, storage.js, recorrencias.js, dialogs.js
 // =============================================================================
 
 // ---------- Modal de transação ----------
 
 /**
  * Abre o modal de nova receita ou despesa com campos zerados.
- * @param {'receita'|'despesa'} tipo
+ * @param {'receita'|'despesa'} tipo - Tipo da transação.
  */
 function abrirModalTransacao(tipo) {
-  document.getElementById('transacao-id').value    = '';
-  document.getElementById('transacao-data').value  = hojeLocal();
-  document.getElementById('transacao-desc').value  = '';
+  const idInput = document.getElementById('transacao-id');
+  const dataInput = document.getElementById('transacao-data');
+  const descInput = document.getElementById('transacao-desc');
+  const valorInput = document.getElementById('transacao-valor');
+  const catSelect = document.getElementById('transacao-cat');
+  const modalTitulo = document.getElementById('modal-titulo');
 
-  const vi = document.getElementById('transacao-valor');
-  if (vi) vi.value = '';
+  if (idInput) idInput.value = '';
+  if (dataInput) dataInput.value = hojeLocal();
+  if (descInput) descInput.value = '';
+  if (valorInput) valorInput.value = '';
 
   // Carrega categorias conforme o tipo
-  const cs = document.getElementById('transacao-cat');
-  cs.innerHTML = '';
-  (tipo === 'receita' ? getCategoriasReceita() : getCategoriasDespesa())
-    .forEach(c => cs.add(new Option(c, c)));
+  if (catSelect) {
+    catSelect.innerHTML = '';
+    const categorias = tipo === 'receita' ? getCategoriasReceita() : getCategoriasDespesa();
+    categorias.forEach(c => catSelect.add(new Option(c, c)));
+  }
 
-  document.getElementById('modal-titulo').innerHTML = tipo === 'receita' ? '💰 Nova Receita' : '💸 Nova Despesa';
+  if (modalTitulo) modalTitulo.innerHTML = tipo === 'receita' ? '💰 Nova Receita' : '💸 Nova Despesa';
 
   // Reseta painel de recorrência
   _resetarPainelRecorrencia();
 
-  document.getElementById('modal-transacao').style.display = 'flex';
+  const modal = document.getElementById('modal-transacao');
+  if (modal) modal.style.display = 'flex';
+
   setTimeout(() => {
-    const vi2 = document.getElementById('transacao-valor');
-    if (vi2 && !vi2.value) vi2.value = '0,00';
-    toggleCartaoRecorrencia();   // garante que opção cartão some em receitas
+    if (valorInput && !valorInput.value) valorInput.value = '0,00';
+    toggleCartaoRecorrencia(); // garante que opção cartão some em receitas
     verificarExibicaoGerarHoje();
     setupMoneyInputs();
   }, 50);
@@ -41,12 +48,13 @@ function abrirModalTransacao(tipo) {
 
 /**
  * Abre o modal com a opção de recorrência já ativada.
- * @param {'receita'|'despesa'} tipo
+ * @param {'receita'|'despesa'} tipo - Tipo da transação.
  */
 function abrirModalTransacaoComRecorrencia(tipo) {
   abrirModalTransacao(tipo);
   setTimeout(() => {
-    document.getElementById('recorrencia-ativa').checked = true;
+    const recCheckbox = document.getElementById('recorrencia-ativa');
+    if (recCheckbox) recCheckbox.checked = true;
     toggleRecorrenciaConfig();
     toggleCartaoRecorrencia();
     _atualizarDiaRecorrencia();
@@ -58,14 +66,18 @@ function abrirModalTransacaoComRecorrencia(tipo) {
  * Salva a transação (nova, edição ou criação de recorrência).
  */
 function salvarTransacao() {
-  const id        = document.getElementById('transacao-id').value;
-  const data      = document.getElementById('transacao-data').value;
-  const descricao = document.getElementById('transacao-desc').value.trim();
-  const categoria = document.getElementById('transacao-cat').value;
-  const tipo      = document.getElementById('modal-titulo').innerHTML.includes('Receita') ? 'receita' : 'despesa';
-  let valor       = currencyToNumber(document.getElementById('transacao-valor').value);
+  const id = document.getElementById('transacao-id')?.value;
+  const data = document.getElementById('transacao-data')?.value;
+  const descricao = document.getElementById('transacao-desc')?.value.trim();
+  const categoria = document.getElementById('transacao-cat')?.value;
+  const modalTitulo = document.getElementById('modal-titulo');
+  const tipo = modalTitulo?.innerHTML.includes('Receita') ? 'receita' : 'despesa';
+  let valor = currencyToNumber(document.getElementById('transacao-valor')?.value);
 
-  if (!descricao || isNaN(valor) || valor <= 0) { showToast('Preencha os dados', true); return; }
+  if (!descricao || isNaN(valor) || valor <= 0) {
+    showToast('Preencha os dados corretamente', true);
+    return;
+  }
 
   valor = tipo === 'receita' ? Math.abs(valor) : -Math.abs(valor);
 
@@ -75,10 +87,13 @@ function salvarTransacao() {
     if (idx !== -1) {
       lancamentos[idx] = { ...lancamentos[idx], data, descricao, categoria, valor };
       showToast('Transação atualizada!');
+    } else {
+      showToast('Erro: transação não encontrada', true);
+      return;
     }
-  } else if (document.getElementById('recorrencia-ativa').checked) {
+  } else if (document.getElementById('recorrencia-ativa')?.checked) {
     _salvarComoRecorrencia({ descricao, categoria, valor });
-    return; // salvarComoRecorrencia chama salvarTudo/renderTudo/fecharModal por conta própria
+    return; // _salvarComoRecorrencia chama salvarTudo/renderTudo/fecharModal
   } else {
     // Transação avulsa
     lancamentos.push({
@@ -89,7 +104,7 @@ function salvarTransacao() {
       valor,
       tipo: valor > 0 ? 'receita' : 'despesa_avista',
     });
-    showToast('Salvo!');
+    showToast('Transação salva!');
   }
 
   salvarTudo();
@@ -99,50 +114,61 @@ function salvarTransacao() {
 
 /**
  * Abre o modal de edição de uma transação existente.
- * @param {string} id
+ * @param {string} id - ID da transação a ser editada.
  */
 function editarTransacao(id) {
-  const t = lancamentos.find(x => x.id === id);
-  if (!t || t.tipo === 'pagamento_fatura') { showToast('Edição não permitida', true); return; }
+  const transacao = lancamentos.find(l => l.id === id);
+  if (!transacao || transacao.tipo === 'pagamento_fatura') {
+    showToast('Edição não permitida para este tipo de lançamento', true);
+    return;
+  }
 
-  document.getElementById('transacao-id').value   = t.id;
-  document.getElementById('transacao-data').value = t.data;
-  document.getElementById('transacao-desc').value = t.descricao;
+  const idInput = document.getElementById('transacao-id');
+  const dataInput = document.getElementById('transacao-data');
+  const descInput = document.getElementById('transacao-desc');
+  const valorInput = document.getElementById('transacao-valor');
+  const catSelect = document.getElementById('transacao-cat');
+  const modalTitulo = document.getElementById('modal-titulo');
 
-  const vi = document.getElementById('transacao-valor');
-  if (vi) vi.value = formatBRL(Math.abs(t.valor).toString());
+  if (idInput) idInput.value = transacao.id;
+  if (dataInput) dataInput.value = transacao.data;
+  if (descInput) descInput.value = transacao.descricao;
+  if (valorInput) valorInput.value = formatBRL(Math.abs(transacao.valor).toString());
 
-  const cs = document.getElementById('transacao-cat');
-  cs.innerHTML = '';
-  (t.valor > 0 ? getCategoriasReceita() : getCategoriasDespesa())
-    .forEach(c => cs.add(new Option(c, c)));
-  cs.value = t.categoria;
+  if (catSelect) {
+    catSelect.innerHTML = '';
+    const categorias = transacao.valor > 0 ? getCategoriasReceita() : getCategoriasDespesa();
+    categorias.forEach(c => catSelect.add(new Option(c, c)));
+    catSelect.value = transacao.categoria;
+  }
 
-  document.getElementById('modal-titulo').innerHTML = t.valor > 0 ? '💰 Editar Receita' : '💸 Editar Despesa';
+  if (modalTitulo) modalTitulo.innerHTML = transacao.valor > 0 ? '💰 Editar Receita' : '💸 Editar Despesa';
 
   _resetarPainelRecorrencia();
-  document.getElementById('modal-transacao').style.display = 'flex';
+
+  const modal = document.getElementById('modal-transacao');
+  if (modal) modal.style.display = 'flex';
 }
 
 /**
- * Exclui uma transação avulsa.
- * @param {string} id
+ * Exclui uma transação avulsa após confirmação do usuário.
+ * @param {string} id - ID da transação a ser excluída.
  */
 function excluirItem(id) {
-  const t = lancamentos.find(l => l.id === id);
-  if (!t) return;
+  const transacao = lancamentos.find(l => l.id === id);
+  if (!transacao) return;
 
   confirmar({
     icone: '🗑️',
     titulo: 'Excluir transação?',
-    mensagem: `"${t.descricao}" — esta ação não pode ser desfeita.`,
+    mensagem: `"${transacao.descricao}" — esta ação não pode ser desfeita.`,
     textoBotao: 'Excluir',
     perigo: true,
   }, () => {
     lancamentos = lancamentos.filter(l => l.id !== id);
     salvarTudo();
     renderTudo();
-    showToast('Removido!');
+    showToast('Transação removida!');
   });
 }
 
@@ -153,14 +179,20 @@ function excluirItem(id) {
  */
 function atualizarReservaDisplay() {
   const total = reservaMetas.reduce((s, m) => s + (m.atual || 0), 0);
-  const meta  = reservaMetas.reduce((s, m) => s + m.valor, 0);
+  const meta = reservaMetas.reduce((s, m) => s + m.valor, 0);
 
-  document.getElementById('total-reservado').innerHTML     = formatMoney(total);
-  document.getElementById('meta-total').innerHTML          = formatMoney(meta);
-  document.getElementById('progress-percent').innerHTML    = meta > 0 ? ((total / meta) * 100).toFixed(1) + '%' : '0%';
-  document.getElementById('progress-reserva-fill').style.width = meta > 0 ? `${Math.min((total / meta) * 100, 100)}%` : '0%';
+  const totalReservadoEl = document.getElementById('total-reservado');
+  const metaTotalEl = document.getElementById('meta-total');
+  const progressPercentEl = document.getElementById('progress-percent');
+  const progressFillEl = document.getElementById('progress-reserva-fill');
+
+  if (totalReservadoEl) totalReservadoEl.innerHTML = formatMoney(total);
+  if (metaTotalEl) metaTotalEl.innerHTML = formatMoney(meta);
+  if (progressPercentEl) progressPercentEl.innerHTML = meta > 0 ? ((total / meta) * 100).toFixed(1) + '%' : '0%';
+  if (progressFillEl) progressFillEl.style.width = meta > 0 ? `${Math.min((total / meta) * 100, 100)}%` : '0%';
 
   const container = document.getElementById('metas-reserva-list');
+  if (!container) return;
 
   if (reservaMetas.length === 0) {
     container.innerHTML = '<div class="empty-state-modern"><div class="icon">🎯</div><div class="title">Nenhuma meta</div></div>';
@@ -168,18 +200,18 @@ function atualizarReservaDisplay() {
   }
 
   container.innerHTML = '';
-  for (const m of reservaMetas) {
-    const pm = m.valor > 0 ? ((m.atual || 0) / m.valor * 100) : 0;
+  for (const metaObj of reservaMetas) {
+    const pm = metaObj.valor > 0 ? ((metaObj.atual || 0) / metaObj.valor * 100) : 0;
     container.innerHTML += `
       <div class="meta-item">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong>${escapeHtml(m.nome)}</strong>
+          <strong>${escapeHtml(metaObj.nome)}</strong>
           <div class="meta-actions">
-            <button onclick="editarMeta('${m.id}')" title="Editar">✏️</button>
-            <button onclick="excluirMeta('${m.id}')" title="Excluir" style="color:var(--danger);">🗑️</button>
+            <button onclick="editarMeta('${metaObj.id}')" title="Editar">✏️</button>
+            <button onclick="excluirMeta('${metaObj.id}')" title="Excluir" style="color:var(--danger);">🗑️</button>
           </div>
         </div>
-        <div style="font-size:var(--font-base); margin-top:var(--margin-xs);">${formatMoney(m.atual || 0)} de ${formatMoney(m.valor)}</div>
+        <div style="font-size:var(--font-base); margin-top:var(--margin-xs);">${formatMoney(metaObj.atual || 0)} de ${formatMoney(metaObj.valor)}</div>
         <div style="height:6px; background:var(--gray-200); border-radius:var(--radius-full); margin-top:var(--margin-xs);">
           <div style="width:${Math.min(pm, 100)}%; background:${pm >= 100 ? 'var(--success)' : 'var(--primary)'}; border-radius:var(--radius-full); height:100%;"></div>
         </div>
@@ -191,21 +223,34 @@ function atualizarReservaDisplay() {
  * Abre o modal de criação de meta de reserva.
  */
 function abrirModalMeta() {
-  document.getElementById('meta-nome').value  = '';
-  document.getElementById('meta-valor').value = '';
-  document.getElementById('modal-meta').style.display = 'flex';
+  const nomeInput = document.getElementById('meta-nome');
+  const valorInput = document.getElementById('meta-valor');
+  if (nomeInput) nomeInput.value = '';
+  if (valorInput) valorInput.value = '';
+
+  const modal = document.getElementById('modal-meta');
+  if (modal) modal.style.display = 'flex';
 }
 
 /**
  * Salva uma nova meta de reserva.
  */
 function salvarMeta() {
-  const nome  = document.getElementById('meta-nome').value.trim();
-  const valor = parseFloat(document.getElementById('meta-valor').value);
+  const nome = document.getElementById('meta-nome')?.value.trim();
+  const valor = parseFloat(document.getElementById('meta-valor')?.value);
 
-  if (!nome || isNaN(valor) || valor <= 0) { showToast('Preencha os dados', true); return; }
+  if (!nome || isNaN(valor) || valor <= 0) {
+    showToast('Preencha os dados corretamente', true);
+    return;
+  }
 
-  reservaMetas.push({ id: gerarId('meta'), nome, valor, atual: 0 });
+  reservaMetas.push({
+    id: gerarId('meta'),
+    nome,
+    valor,
+    atual: 0,
+  });
+
   salvarTudo();
   atualizarReservaDisplay();
   fecharModal('modal-meta');
@@ -213,51 +258,54 @@ function salvarMeta() {
 }
 
 /**
- * Edita nome e valor de uma meta existente.
- * @param {string} id
+ * Edita nome e valor de uma meta existente usando o sistema de diálogos.
+ * @param {string} id - ID da meta a ser editada.
  */
 function editarMeta(id) {
-  const m = reservaMetas.find(x => x.id === id);
-  if (!m) return;
+  const meta = reservaMetas.find(m => m.id === id);
+  if (!meta) return;
 
   perguntarForm({
     icone: '🎯',
     titulo: 'Editar meta',
     textoBotao: 'Salvar',
     campos: [
-      { campo: 'nome',  label: 'Nome',           valorInicial: m.nome,  required: true },
-      { campo: 'valor', label: 'Valor objetivo', tipo: 'money', valorInicial: m.valor, required: true },
+      { campo: 'nome', label: 'Nome', valorInicial: meta.nome, required: true },
+      { campo: 'valor', label: 'Valor objetivo', tipo: 'money', valorInicial: meta.valor, required: true },
     ],
   }, ({ nome, valor }) => {
     const novoValor = currencyToNumber(valor);
-    if (!nome.trim() || isNaN(novoValor) || novoValor <= 0) { showToast('Dados inválidos', true); return; }
-    m.nome  = nome.trim();
-    m.valor = novoValor;
+    if (!nome.trim() || isNaN(novoValor) || novoValor <= 0) {
+      showToast('Dados inválidos', true);
+      return;
+    }
+    meta.nome = nome.trim();
+    meta.valor = novoValor;
     salvarTudo();
     atualizarReservaDisplay();
-    showToast('Atualizada!');
+    showToast('Meta atualizada!');
   });
 }
 
 /**
- * Remove uma meta de reserva.
- * @param {string} id
+ * Remove uma meta de reserva após confirmação.
+ * @param {string} id - ID da meta a ser excluída.
  */
 function excluirMeta(id) {
-  const m = reservaMetas.find(x => x.id === id);
-  if (!m) return;
+  const meta = reservaMetas.find(m => m.id === id);
+  if (!meta) return;
 
   confirmar({
     icone: '🗑️',
-    titulo: `Excluir "${m.nome}"?`,
+    titulo: `Excluir "${meta.nome}"?`,
     mensagem: 'O saldo desta meta será perdido permanentemente.',
     textoBotao: 'Excluir',
     perigo: true,
   }, () => {
-    reservaMetas = reservaMetas.filter(x => x.id !== id);
+    reservaMetas = reservaMetas.filter(m => m.id !== id);
     salvarTudo();
     atualizarReservaDisplay();
-    showToast('Excluída!');
+    showToast('Meta excluída!');
   });
 }
 
@@ -267,6 +315,7 @@ function excluirMeta(id) {
  */
 function adicionarReservaRapida() {
   const saldo = calcularSaldoReal();
+
   perguntarValor({
     icone: '➕',
     titulo: 'Adicionar à reserva',
@@ -275,7 +324,10 @@ function adicionarReservaRapida() {
     info: `Saldo disponível: <strong>${formatMoney(saldo)}</strong>`,
     textoBotao: 'Transferir',
   }, valor => {
-    if (saldo < valor) { showToast('Saldo insuficiente!', true); return; }
+    if (saldo < valor) {
+      showToast('Saldo insuficiente!', true);
+      return;
+    }
 
     lancamentos.push({
       id: gerarId('res'),
@@ -287,13 +339,15 @@ function adicionarReservaRapida() {
     });
 
     const totalMeta = reservaMetas.reduce((s, m) => s + m.valor, 0);
-    for (const m of reservaMetas) {
-      m.atual = (m.atual || 0) + (valor * (m.valor / totalMeta));
+    if (totalMeta > 0) {
+      for (const meta of reservaMetas) {
+        meta.atual = (meta.atual || 0) + (valor * (meta.valor / totalMeta));
+      }
     }
 
     salvarTudo();
     renderTudo();
-    showToast(`✅ ${formatMoney(valor)} adicionado!`);
+    showToast(`✅ ${formatMoney(valor)} adicionado à reserva!`);
   });
 }
 
@@ -301,18 +355,24 @@ function adicionarReservaRapida() {
  * Resgata um valor da reserva e devolve para a conta corrente.
  */
 function sacarReserva() {
-  const total = reservaMetas.reduce((s, m) => s + (m.atual || 0), 0);
-  if (total === 0) { showToast('Nada para sacar', true); return; }
+  const totalReservado = reservaMetas.reduce((s, m) => s + (m.atual || 0), 0);
+  if (totalReservado === 0) {
+    showToast('Nada para sacar da reserva', true);
+    return;
+  }
 
   perguntarValor({
     icone: '➖',
     titulo: 'Sacar da reserva',
     label: 'Valor a resgatar',
     valorInicial: 0,
-    info: `Reserva disponível: <strong>${formatMoney(total)}</strong>`,
+    info: `Reserva disponível: <strong>${formatMoney(totalReservado)}</strong>`,
     textoBotao: 'Sacar',
   }, valor => {
-    if (total < valor) { showToast('Saldo insuficiente!', true); return; }
+    if (totalReservado < valor) {
+      showToast('Saldo insuficiente na reserva!', true);
+      return;
+    }
 
     lancamentos.push({
       id: gerarId('res_saq'),
@@ -324,13 +384,15 @@ function sacarReserva() {
     });
 
     const totalMeta = reservaMetas.reduce((s, m) => s + m.valor, 0);
-    for (const m of reservaMetas) {
-      m.atual = Math.max(0, (m.atual || 0) - (valor * (m.valor / totalMeta)));
+    if (totalMeta > 0) {
+      for (const meta of reservaMetas) {
+        meta.atual = Math.max(0, (meta.atual || 0) - (valor * (meta.valor / totalMeta)));
+      }
     }
 
     salvarTudo();
     renderTudo();
-    showToast(`✅ ${formatMoney(valor)} sacado!`);
+    showToast(`✅ ${formatMoney(valor)} sacado da reserva!`);
   });
 }
 
@@ -341,26 +403,36 @@ function sacarReserva() {
  * @private
  */
 function _resetarPainelRecorrencia() {
-  document.getElementById('recorrencia-ativa').checked = false;
-  document.getElementById('recorrencia-config').classList.remove('active');
-  document.getElementById('recorrencia-icon').textContent = '🔄';
+  const recCheckbox = document.getElementById('recorrencia-ativa');
+  const recConfig = document.getElementById('recorrencia-config');
+  const recIcon = document.getElementById('recorrencia-icon');
+  const inputDia = document.getElementById('recorrencia-dia');
+  const labelDia = document.getElementById('label-dia-recorrencia');
+  const formaPagamento = document.getElementById('recorrencia-forma-pagamento');
+  const cartaoGroup = document.getElementById('recorrencia-cartao-group');
+  const dataFim = document.getElementById('recorrencia-fim');
+  const gerarHojeToggle = document.getElementById('gerar-hoje-toggle');
 
-  document.querySelectorAll('#frequencia-chips .recorrencia-chip')
-    .forEach(chip => chip.classList.remove('active'));
+  if (recCheckbox) recCheckbox.checked = false;
+  if (recConfig) recConfig.classList.remove('active');
+  if (recIcon) recIcon.textContent = '🔄';
+
+  // Reseta chips de frequência
+  document.querySelectorAll('#frequencia-chips .recorrencia-chip').forEach(chip => chip.classList.remove('active'));
   const chipMensal = document.querySelector('#frequencia-chips .recorrencia-chip[data-freq="mensal"]');
   if (chipMensal) chipMensal.classList.add('active');
 
-  const inputDia = document.getElementById('recorrencia-dia');
-  inputDia.min = 1; inputDia.max = 31;
-  inputDia.placeholder = 'Dia do vencimento';
-  inputDia.value = new Date().getDate();
+  if (inputDia) {
+    inputDia.min = 1;
+    inputDia.max = 31;
+    inputDia.placeholder = 'Dia do vencimento';
+    inputDia.value = new Date().getDate();
+  }
 
-  document.getElementById('label-dia-recorrencia').textContent = 'Dia do mês (1-31)';
-  document.getElementById('recorrencia-forma-pagamento').value = 'debito';
-  document.getElementById('recorrencia-cartao-group').style.display = 'none';
-  document.getElementById('recorrencia-fim').value = '';
-
-  const gerarHojeToggle = document.getElementById('gerar-hoje-toggle');
+  if (labelDia) labelDia.textContent = 'Dia do mês (1-31)';
+  if (formaPagamento) formaPagamento.value = 'debito';
+  if (cartaoGroup) cartaoGroup.style.display = 'none';
+  if (dataFim) dataFim.value = '';
   if (gerarHojeToggle) gerarHojeToggle.style.display = 'none';
 }
 
@@ -373,45 +445,59 @@ function _atualizarDiaRecorrencia() {
   if (!chipAtivo) return;
 
   const hoje = new Date();
-  const freq = chipAtivo.dataset.freq;
+  const frequencia = chipAtivo.dataset.freq;
   const inputDia = document.getElementById('recorrencia-dia');
+  if (!inputDia) return;
 
-  if (freq === 'mensal')    inputDia.value = hoje.getDate();
-  else if (freq === 'quinzenal') inputDia.value = Math.min(hoje.getDate(), 15);
-  else if (freq === 'semanal')   inputDia.value = hoje.getDay();
+  if (frequencia === 'mensal') {
+    inputDia.value = hoje.getDate();
+  } else if (frequencia === 'quinzenal') {
+    inputDia.value = Math.min(hoje.getDate(), 15);
+  } else if (frequencia === 'semanal') {
+    inputDia.value = hoje.getDay();
+  }
 }
 
 /**
- * Salva a transação como recorrência, gerando a primeira ocorrência imediatamente
- * se aplicável.
+ * Salva a transação como recorrência, gerando a primeira ocorrência imediatamente se aplicável.
+ * @param {Object} params - Parâmetros da recorrência.
+ * @param {string} params.descricao - Descrição da recorrência.
+ * @param {string} params.categoria - Categoria da recorrência.
+ * @param {number} params.valor - Valor da recorrência (com sinal).
  * @private
- * @param {{ descricao: string, categoria: string, valor: number }} params
  */
 function _salvarComoRecorrencia({ descricao, categoria, valor }) {
-  const freqBtn    = document.querySelector('#frequencia-chips .recorrencia-chip.active');
+  const freqBtn = document.querySelector('#frequencia-chips .recorrencia-chip.active');
   const frequencia = freqBtn ? freqBtn.dataset.freq : 'mensal';
-  const hoje       = new Date();
-  const hojeStr    = formatarDataLocal(hoje);
+  const hoje = new Date();
+  const hojeStr = formatarDataLocal(hoje);
 
   // Valida e normaliza o dia conforme a frequência
-  let dia = parseInt(document.getElementById('recorrencia-dia').value);
-  if (frequencia === 'semanal')        dia = (!isNaN(dia) && dia >= 0 && dia <= 6) ? dia : hoje.getDay();
-  else if (frequencia === 'quinzenal') dia = Math.min(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 15);
-  else                                 dia = Math.min(Math.max(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 1), 31);
+  let dia = parseInt(document.getElementById('recorrencia-dia')?.value);
+  if (frequencia === 'semanal') {
+    dia = (!isNaN(dia) && dia >= 0 && dia <= 6) ? dia : hoje.getDay();
+  } else if (frequencia === 'quinzenal') {
+    dia = Math.min(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 15);
+  } else {
+    dia = Math.min(Math.max(!isNaN(dia) && dia >= 1 ? dia : hoje.getDate(), 1), 31);
+  }
 
-  const dataFim        = document.getElementById('recorrencia-fim').value || null;
-  const formaPagamento = document.getElementById('recorrencia-forma-pagamento').value;
+  const dataFim = document.getElementById('recorrencia-fim')?.value || null;
+  const formaPagamento = document.getElementById('recorrencia-forma-pagamento')?.value;
   let cartaoId = null;
 
   if (formaPagamento === 'cartao') {
-    cartaoId = document.getElementById('recorrencia-cartao').value;
-    if (!cartaoId) { showToast('Selecione um cartão', true); return; }
+    cartaoId = document.getElementById('recorrencia-cartao')?.value;
+    if (!cartaoId) {
+      showToast('Selecione um cartão', true);
+      return;
+    }
   }
 
   // "Gerar hoje" está visível E marcado
-  const gerarHojeEl       = document.getElementById('gerar-hoje-toggle');
+  const gerarHojeEl = document.getElementById('gerar-hoje-toggle');
   const gerarPrimeiraHoje = document.getElementById('gerar-primeira-hoje');
-  const gerarHoje         = gerarHojeEl?.style.display === 'flex' && gerarPrimeiraHoje?.checked === true;
+  const gerarHoje = gerarHojeEl?.style.display === 'flex' && gerarPrimeiraHoje?.checked === true;
 
   const novaRec = {
     id: gerarId('rec'),
@@ -442,7 +528,7 @@ function _salvarComoRecorrencia({ descricao, categoria, valor }) {
           cartaoId: cartao.id,
           parcelasPagas: 0,
         });
-        showToast(`✅ Recorrência criada! Primeira parcela lançada hoje.`);
+        showToast('✅ Recorrência criada! Primeira parcela lançada hoje.');
       }
     } else {
       lancamentos.push({

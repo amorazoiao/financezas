@@ -1,17 +1,40 @@
 // =============================================================================
 // dashboard.js — Dashboard principal, gráficos, métricas e histórico
 // =============================================================================
-// Depende de: utils.js, storage.js
+// Depende de: utils.js, storage.js, dialogs.js
 // =============================================================================
 
-// Categorias consideradas essenciais para cálculo de análise do mês
+/**
+ * Categorias consideradas essenciais para o cálculo da análise do mês.
+ * @constant {string[]}
+ */
 const CATEGORIAS_ESSENCIAIS = ['Alimentação', 'Moradia', 'Saúde', 'Educação', 'Contas', 'Transporte'];
 
-// Paleta de cores do gráfico de distribuição
+/**
+ * Paleta de cores para o gráfico de distribuição (doughnut).
+ * @constant {string[]}
+ */
 const CHART_COLORS = [
   '#FF4757', '#1E90FF', '#FFA502', '#2ED573', '#A55EEA',
   '#70A1FF', '#FF6B81', '#FF9800', '#00CED1', '#FF69B4',
 ];
+
+// ---------- Estado do mês selecionado no dashboard ----------
+/** @type {number} Mês (0-11) selecionado no dashboard. */
+let dashMes = new Date().getMonth();
+/** @type {number} Ano selecionado no dashboard. */
+let dashAno = new Date().getFullYear();
+
+/**
+ * Navega o dashboard para o mês anterior ou próximo.
+ * @param {-1|1} dir - Direção da navegação: -1 para anterior, 1 para próximo.
+ */
+function dashNavMes(dir) {
+  dashMes += dir;
+  if (dashMes < 0) { dashMes = 11; dashAno--; }
+  if (dashMes > 11) { dashMes = 0; dashAno++; }
+  atualizarDashboard();
+}
 
 // ---------- Ponto de entrada do dashboard ----------
 
@@ -33,41 +56,59 @@ function atualizarDashboard() {
 
 // ---------- Hero balance ----------
 
-/** @private Atualiza o card de saldo atual, receitas totais e despesas totais. */
+/**
+ * Atualiza o card principal (hero) com saldo atual, receitas e despesas.
+ * @private
+ */
 function _atualizarHeroBalance() {
-  const saldo    = calcularSaldoReal();
+  const saldo = calcularSaldoReal();
   const receitas = lancamentos.filter(l => l.valor > 0 && l.tipo !== 'pagamento_fatura').reduce((s, l) => s + l.valor, 0);
   const despesas = lancamentos.filter(l => l.valor < 0 && l.tipo === 'despesa_avista').reduce((s, l) => s + Math.abs(l.valor), 0);
 
   const elSaldo = document.getElementById('hero-balance');
-  elSaldo.textContent = formatMoney(saldo);
-  elSaldo.classList.toggle('saldo-negativo', saldo < 0);
+  if (elSaldo) {
+    elSaldo.textContent = formatMoney(saldo);
+    elSaldo.classList.toggle('saldo-negativo', saldo < 0);
+  }
 
-  document.getElementById('hero-receitas').textContent = formatMoney(receitas);
-  document.getElementById('hero-despesas').textContent = formatMoney(despesas);
+  const receitasEl = document.getElementById('hero-receitas');
+  if (receitasEl) receitasEl.textContent = formatMoney(receitas);
+  
+  const despesasEl = document.getElementById('hero-despesas');
+  if (despesasEl) despesasEl.textContent = formatMoney(despesas);
 }
 
 // ---------- Análise do mês ----------
 
-/** @private Atualiza os indicadores de poupança, essenciais e supérfluos do mês atual. */
+/**
+ * Atualiza os indicadores de poupança, gastos essenciais e supérfluos do mês atual.
+ * @private
+ */
 function _atualizarAnalise() {
   const hoje = new Date();
-  const mes  = hoje.getMonth();
-  const ano  = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  const ano = hoje.getFullYear();
 
   const receitasMes = lancamentos
-    .filter(l => { const d = parseLocalDate(l.data); return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano; })
+    .filter(l => {
+      const d = parseLocalDate(l.data);
+      return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano;
+    })
     .reduce((s, l) => s + l.valor, 0);
 
   const despesasMes = lancamentos
-    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano; })
+    .filter(l => {
+      const d = parseLocalDate(l.data);
+      return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
+    })
     .reduce((s, l) => s + Math.abs(l.valor), 0);
 
   const parcelasMes = _somarParcelasDoMes(mes, ano);
-  const gastoTotal  = despesasMes + parcelasMes;
-  const poupanca    = receitasMes > 0 ? ((receitasMes - gastoTotal) / receitasMes * 100) : (gastoTotal > 0 ? -100 : 0);
+  const gastoTotal = despesasMes + parcelasMes;
+  const poupanca = receitasMes > 0 ? ((receitasMes - gastoTotal) / receitasMes * 100) : (gastoTotal > 0 ? -100 : 0);
 
-  document.getElementById('savings').innerHTML = poupanca.toFixed(1) + '%';
+  const savingsEl = document.getElementById('savings');
+  if (savingsEl) savingsEl.innerHTML = poupanca.toFixed(1) + '%';
 
   // Essenciais vs supérfluos
   let essencial = 0;
@@ -94,47 +135,64 @@ function _atualizarAnalise() {
   }
 
   const totalGastos = essencial + superfluo;
-  document.getElementById('essencial').innerHTML = totalGastos > 0 ? (essencial / totalGastos * 100).toFixed(1) + '%' : '0%';
-  document.getElementById('superfluo').innerHTML = totalGastos > 0 ? (superfluo / totalGastos * 100).toFixed(1) + '%' : '0%';
-  document.getElementById('gastos-essenciais-mensais').innerHTML = formatMoney(essencial);
+  const essencialEl = document.getElementById('essencial');
+  const superfluoEl = document.getElementById('superfluo');
+  const gastosEssenciaisEl = document.getElementById('gastos-essenciais-mensais');
+  
+  if (essencialEl) essencialEl.innerHTML = totalGastos > 0 ? (essencial / totalGastos * 100).toFixed(1) + '%' : '0%';
+  if (superfluoEl) superfluoEl.innerHTML = totalGastos > 0 ? (superfluo / totalGastos * 100).toFixed(1) + '%' : '0%';
+  if (gastosEssenciaisEl) gastosEssenciaisEl.innerHTML = formatMoney(essencial);
 }
 
-/** @private Atualiza o indicador de uso do limite dos cartões. */
+/**
+ * Atualiza o indicador de uso do limite dos cartões.
+ * @private
+ */
 function _atualizarUsoCartoes() {
-  let totalUsado  = 0;
+  let totalUsado = 0;
   let totalLimite = 0;
   for (const cartao of cartoes) {
-    totalUsado  += getTotalUtilizadoCartao(cartao.id);
+    totalUsado += getTotalUtilizadoCartao(cartao.id);
     totalLimite += cartao.limite;
   }
-  document.getElementById('uso-cartao').innerHTML = totalLimite > 0 ? (totalUsado / totalLimite * 100).toFixed(1) + '%' : '0%';
+  const usoCartaoEl = document.getElementById('uso-cartao');
+  if (usoCartaoEl) usoCartaoEl.innerHTML = totalLimite > 0 ? (totalUsado / totalLimite * 100).toFixed(1) + '%' : '0%';
 }
 
 // ---------- Gráficos ----------
 
 /**
  * Renderiza o gráfico de evolução patrimonial dos últimos 12 meses.
+ * @global evolutionChart
  */
 function renderEvolutionChart() {
   const dados = [];
 
   for (let i = 11; i >= 0; i--) {
     const ref = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
-    const mes  = ref.getMonth();
-    const ano  = ref.getFullYear();
+    const mes = ref.getMonth();
+    const ano = ref.getFullYear();
 
     const receitas = lancamentos
-      .filter(l => { const d = parseLocalDate(l.data); return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano; })
+      .filter(l => {
+        const d = parseLocalDate(l.data);
+        return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano;
+      })
       .reduce((s, l) => s + l.valor, 0);
 
     const despesas = lancamentos
-      .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano; })
+      .filter(l => {
+        const d = parseLocalDate(l.data);
+        return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
+      })
       .reduce((s, l) => s + Math.abs(l.valor), 0);
 
     const parcelas = _somarParcelasDoMes(mes, ano);
-
     const pagamentos = lancamentos
-      .filter(l => { const d = parseLocalDate(l.data); return l.tipo === 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano; })
+      .filter(l => {
+        const d = parseLocalDate(l.data);
+        return l.tipo === 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano;
+      })
       .reduce((s, l) => s + Math.abs(l.valor), 0);
 
     dados.push({
@@ -145,8 +203,10 @@ function renderEvolutionChart() {
 
   if (evolutionChart) evolutionChart.destroy();
 
-  const ctx = document.getElementById('evolution-chart').getContext('2d');
-  evolutionChart = new Chart(ctx, {
+  const ctx = document.getElementById('evolution-chart');
+  if (!ctx) return;
+  
+  evolutionChart = new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: {
       labels: dados.map(d => d.mes),
@@ -177,12 +237,13 @@ function renderEvolutionChart() {
 /**
  * Renderiza o gráfico de rosca (distribuição por categoria).
  * Usa a variável global `chartType` para alternar entre receitas e despesas.
+ * @global chart
  */
 function atualizarGrafico() {
   const hoje = new Date();
-  const mes  = hoje.getMonth();
-  const ano  = hoje.getFullYear();
-  let itens  = [];
+  const mes = hoje.getMonth();
+  const ano = hoje.getFullYear();
+  let itens = [];
 
   if (chartType === 'receita') {
     itens = lancamentos.filter(l => {
@@ -209,17 +270,19 @@ function atualizarGrafico() {
     itens = [...despesas, ...parcelas];
   }
 
-  const elChart = document.getElementById('chart');
-  const elEmpty = document.getElementById('chart-empty');
+  const canvas = document.getElementById('chart');
+  const emptyDiv = document.getElementById('chart-empty');
+
+  if (!canvas) return;
 
   if (itens.length === 0) {
-    elChart.style.display = 'none';
-    elEmpty.style.display = 'block';
+    canvas.style.display = 'none';
+    if (emptyDiv) emptyDiv.style.display = 'block';
     return;
   }
 
-  elChart.style.display = 'block';
-  elEmpty.style.display = 'none';
+  canvas.style.display = 'block';
+  if (emptyDiv) emptyDiv.style.display = 'none';
 
   // Agrupa por categoria
   const grupos = {};
@@ -232,7 +295,7 @@ function atualizarGrafico() {
 
   if (chart) chart.destroy();
 
-  chart = new Chart(elChart, {
+  chart = new Chart(canvas, {
     type: 'doughnut',
     data: {
       labels: Object.keys(grupos),
@@ -256,10 +319,10 @@ function atualizarGrafico() {
     },
   });
 
-  const ct = document.getElementById('chart-center-text');
-  if (ct) {
-    ct.style.display = 'block';
-    ct.innerHTML = `
+  const centerDiv = document.getElementById('chart-center-text');
+  if (centerDiv) {
+    centerDiv.style.display = 'block';
+    centerDiv.innerHTML = `
       <span class="chart-center-value">${formatMoney(total)}</span>
       <span style="font-size:var(--font-sm);">${chartType === 'receita' ? 'Receitas' : 'Despesas'}</span>`;
   }
@@ -267,52 +330,69 @@ function atualizarGrafico() {
 
 /**
  * Alterna o gráfico entre despesas e receitas.
- * @param {'despesa'|'receita'} tipo
+ * @param {'despesa'|'receita'} tipo - O novo tipo para o gráfico.
  */
 function toggleChart(tipo) {
   chartType = tipo;
-  document.getElementById('btn-despesas').classList.toggle('active', tipo === 'despesa');
-  document.getElementById('btn-receitas').classList.toggle('active', tipo === 'receita');
+  const btnDespesas = document.getElementById('btn-despesas');
+  const btnReceitas = document.getElementById('btn-receitas');
+  if (btnDespesas) btnDespesas.classList.toggle('active', tipo === 'despesa');
+  if (btnReceitas) btnReceitas.classList.toggle('active', tipo === 'receita');
   atualizarGrafico();
 }
 
 // ---------- Métricas avançadas ----------
 
 /**
- * Calcula e exibe: média de gastos/dia, categoria líder, dias sem gastos
- * e projeção de gasto para o fim do mês.
+ * Calcula e exibe métricas avançadas: média de gastos/dia,
+ * categoria que mais gasta, dias sem gastos e projeção para o fim do mês.
  */
 function calcularMetricasAvancadas() {
-  const hoje     = new Date();
-  const mes      = hoje.getMonth();
-  const ano      = hoje.getFullYear();
+  const hoje = new Date();
+  const mes = hoje.getMonth();
+  const ano = hoje.getFullYear();
   const diaAtual = hoje.getDate();
 
   const despesasMes = lancamentos
-    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano; })
+    .filter(l => {
+      const d = parseLocalDate(l.data);
+      return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
+    })
     .reduce((s, l) => s + Math.abs(l.valor), 0);
 
   const parcelasMes = _somarParcelasDoMes(mes, ano);
   const gastosTotais = despesasMes + parcelasMes;
 
-  document.getElementById('media-gastos-diarios').innerHTML = formatMoney(gastosTotais / diaAtual);
+  const mediaGastosEl = document.getElementById('media-gastos-diarios');
+  if (mediaGastosEl) mediaGastosEl.innerHTML = formatMoney(gastosTotais / diaAtual);
 
   // Tendência vs mês anterior
   const mesAnt = mes === 0 ? 11 : mes - 1;
   const anoAnt = mes === 0 ? ano - 1 : ano;
   const despesasAnt = lancamentos
-    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mesAnt && d.getFullYear() === anoAnt; })
+    .filter(l => {
+      const d = parseLocalDate(l.data);
+      return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mesAnt && d.getFullYear() === anoAnt;
+    })
     .reduce((s, l) => s + Math.abs(l.valor), 0);
   const gastosAnt = despesasAnt + _somarParcelasDoMes(mesAnt, anoAnt);
 
   const trend = document.getElementById('trend-gastos');
-  if (gastosAnt > 0) {
-    const diff = (gastosTotais - gastosAnt) / gastosAnt * 100;
-    if (diff > 0)      { trend.innerHTML = `📈 +${diff.toFixed(1)}%`; trend.className = 'metric-trend up'; }
-    else if (diff < 0) { trend.innerHTML = `📉 ${diff.toFixed(1)}%`;  trend.className = 'metric-trend down'; }
-    else               { trend.innerHTML = '➡️ igual'; }
-  } else {
-    trend.innerHTML = 'vs mês anterior';
+  if (trend) {
+    if (gastosAnt > 0) {
+      const diff = (gastosTotais - gastosAnt) / gastosAnt * 100;
+      if (diff > 0) {
+        trend.innerHTML = `📈 +${diff.toFixed(1)}%`;
+        trend.className = 'metric-trend up';
+      } else if (diff < 0) {
+        trend.innerHTML = `📉 ${diff.toFixed(1)}%`;
+        trend.className = 'metric-trend down';
+      } else {
+        trend.innerHTML = '➡️ igual';
+      }
+    } else {
+      trend.innerHTML = 'vs mês anterior';
+    }
   }
 
   // Categoria que mais gastou
@@ -320,22 +400,31 @@ function calcularMetricasAvancadas() {
   let maiorCat = '';
   let maiorVal = 0;
   for (const [cat, val] of Object.entries(gastosCat)) {
-    if (val > maiorVal) { maiorVal = val; maiorCat = cat; }
+    if (val > maiorVal) {
+      maiorVal = val;
+      maiorCat = cat;
+    }
   }
-  document.getElementById('maior-categoria').innerHTML = maiorCat ? `${maiorCat} (${formatMoney(maiorVal)})` : '—';
+  const maiorCategoriaEl = document.getElementById('maior-categoria');
+  if (maiorCategoriaEl) maiorCategoriaEl.innerHTML = maiorCat ? `${maiorCat} (${formatMoney(maiorVal)})` : '—';
 
   // Dias sem gastos
   const diasComGasto = new Set(
     lancamentos
-      .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano; })
+      .filter(l => {
+        const d = parseLocalDate(l.data);
+        return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
+      })
       .map(l => parseLocalDate(l.data).getDate())
   );
-  document.getElementById('dias-zerados').innerHTML = diaAtual - diasComGasto.size;
+  const diasZeradosEl = document.getElementById('dias-zerados');
+  if (diasZeradosEl) diasZeradosEl.innerHTML = diaAtual - diasComGasto.size;
 
   // Projeção fim do mês
   const diasNoMes = new Date(ano, mes + 1, 0).getDate();
-  const projecao  = gastosTotais + (gastosTotais / diaAtual) * (diasNoMes - diaAtual);
-  document.getElementById('projecao-mes').innerHTML = formatMoney(projecao);
+  const projecao = gastosTotais + (gastosTotais / diaAtual) * (diasNoMes - diaAtual);
+  const projecaoEl = document.getElementById('projecao-mes');
+  if (projecaoEl) projecaoEl.innerHTML = formatMoney(projecao);
 }
 
 // ---------- Alertas inteligentes ----------
@@ -360,7 +449,7 @@ function renderSmartAlerts() {
   // Cartões com uso alto
   for (const cartao of cartoes) {
     const usado = getTotalUtilizadoCartao(cartao.id);
-    const pct   = cartao.limite > 0 ? (usado / cartao.limite * 100) : 0;
+    const pct = cartao.limite > 0 ? (usado / cartao.limite * 100) : 0;
     if (pct > 70) {
       container.innerHTML += `<div class="smart-alert">
         💳 ${pct.toFixed(0)}% do limite do ${escapeHtml(cartao.nome)}
@@ -369,14 +458,14 @@ function renderSmartAlerts() {
   }
 
   // Orçamentos próximos do limite
-  const hoje       = new Date();
-  const mes        = hoje.getMonth();
-  const ano        = hoje.getFullYear();
+  const hoje = new Date();
+  const mes = hoje.getMonth();
+  const ano = hoje.getFullYear();
   const gastosReais = _calcularGastosPorCategoria(mes, ano);
 
   for (const o of orcamentos.filter(o => o.mes === mes && o.ano === ano)) {
     const gasto = gastosReais[o.categoria] || 0;
-    const pct   = (gasto / o.limite) * 100;
+    const pct = (gasto / o.limite) * 100;
 
     if (pct >= 90) {
       container.innerHTML += `<div class="smart-alert" style="border-left-color:var(--danger);">
@@ -397,8 +486,8 @@ function renderSmartAlerts() {
  * Renderiza os últimos 10 lançamentos no dashboard, com filtros de tipo e categoria.
  */
 function renderHistorico() {
-  const tipoFiltro = document.getElementById('filter-type').value;
-  const catFiltro  = document.getElementById('filter-cat').value;
+  const tipoFiltro = document.getElementById('filter-type')?.value || 'all';
+  const catFiltro = document.getElementById('filter-cat')?.value || 'all';
 
   let itens = obterTodosLancamentosParaUI();
 
@@ -406,9 +495,15 @@ function renderHistorico() {
   else if (tipoFiltro === 'despesa') itens = itens.filter(i => i.valor < 0);
   if (catFiltro !== 'all') itens = itens.filter(i => i.categoria === catFiltro);
 
-  itens.sort((a, b) => new Date(b.data) - new Date(a.data));
+  // 🔥 CORREÇÃO: Ordena usando parseLocalDate
+  itens.sort((a, b) => {
+    const da = parseLocalDate(a.data);
+    const db = parseLocalDate(b.data);
+    return db - da;
+  });
 
   const container = document.getElementById('history-list');
+  if (!container) return;
 
   if (itens.length === 0) {
     container.innerHTML = '<div class="empty-state-modern"><div class="icon">📭</div><div class="title">Nenhuma transação encontrada</div></div>';
@@ -420,41 +515,59 @@ function renderHistorico() {
   let ultimaData = '';
 
   for (const t of itens.slice(0, 10)) {
-    const dataLabel = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    if (dataLabel !== ultimaData) {
+    const dataObj = parseLocalDate(t.data);
+    const dataLabel = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    if (dataLabel !== ultimaData && cd) {
       cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
       ultimaData = dataLabel;
     }
-    cd.innerHTML += _renderCardTransacao(t);
+    if (cd) cd.innerHTML += _renderCardTransacao(t);
   }
 }
 
+
 /**
  * Renderiza as transações de um determinado mês/ano no extrato completo.
- * @param {number} mes
- * @param {number} ano
+ * @param {number} mes - Mês (0-indexado).
+ * @param {number} ano - Ano.
  */
 function carregarExtratoComFiltro(mes, ano) {
   const todos = obterTodosLancamentosParaUI();
   const filtrados = todos
-    .filter(t => { const d = parseLocalDate(t.data); return d.getMonth() === mes && d.getFullYear() === ano; })
-    .sort((a, b) => new Date(b.data) - new Date(a.data));
+    .filter(t => {
+      const d = parseLocalDate(t.data); // 🔥 USAR parseLocalDate
+      return d.getMonth() === mes && d.getFullYear() === ano;
+    })
+    .sort((a, b) => {
+      const da = parseLocalDate(a.data);
+      const db = parseLocalDate(b.data);
+      return db - da; // ordena do mais recente para o mais antigo
+    });
 
   _renderResumoExtrato(filtrados, mes, ano);
   _renderListaExtrato(filtrados);
 }
 
-/** @private Gera o resumo financeiro do extrato (bloco com 6 cards). */
+/**
+ * Gera o resumo financeiro do extrato (bloco com 6 cards).
+ * @param {Array} filtrados - Lista de lançamentos filtrados.
+ * @param {number} mes - Mês.
+ * @param {number} ano - Ano.
+ * @private
+ */
 function _renderResumoExtrato(filtrados, mes, ano) {
-  const receitas       = filtrados.filter(t => t.valor > 0 && t.tipo !== 'pagamento_fatura').reduce((s, t) => s + t.valor, 0);
+  const receitas = filtrados.filter(t => t.valor > 0 && t.tipo !== 'pagamento_fatura').reduce((s, t) => s + t.valor, 0);
   const despesasAvista = filtrados.filter(t => t.valor < 0 && t.tipo !== 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const comprasCartao  = filtrados.filter(t => t.tipo === 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const pagamentos     = filtrados.filter(t => t.tipo === 'pagamento_fatura').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const gastoTotal     = despesasAvista + comprasCartao;
-  const saldoConta     = receitas - despesasAvista - pagamentos;
-  const economia       = receitas - gastoTotal;
+  const comprasCartao = filtrados.filter(t => t.tipo === 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
+  const pagamentos = filtrados.filter(t => t.tipo === 'pagamento_fatura').reduce((s, t) => s + Math.abs(t.valor), 0);
+  const gastoTotal = despesasAvista + comprasCartao;
+  const saldoConta = receitas - despesasAvista - pagamentos;
+  const economia = receitas - gastoTotal;
 
-  document.getElementById('extrato-resumo').innerHTML = `
+  const extratoResumo = document.getElementById('extrato-resumo');
+  if (!extratoResumo) return;
+
+  extratoResumo.innerHTML = `
     <div class="extrato-resumo">
       <div class="resumo-card receita"><div class="emoji">💰</div><div class="label">RECEITAS</div><div class="value">${formatMoney(receitas)}</div></div>
       <div class="resumo-card despesa"><div class="emoji">💸</div><div class="label">À VISTA</div><div class="value">${formatMoney(despesasAvista)}</div></div>
@@ -467,9 +580,14 @@ function _renderResumoExtrato(filtrados, mes, ano) {
     </div>`;
 }
 
-/** @private Renderiza a lista de lançamentos do extrato. */
+/**
+ * Renderiza a lista de lançamentos do extrato.
+ * @param {Array} filtrados - Lista de lançamentos filtrados.
+ * @private
+ */
 function _renderListaExtrato(filtrados) {
   const container = document.getElementById('extrato-list');
+  if (!container) return;
 
   if (filtrados.length === 0) {
     container.innerHTML = '<div class="empty-state-modern">📭 Nenhuma movimentação</div>';
@@ -482,38 +600,52 @@ function _renderListaExtrato(filtrados) {
 
   for (const t of filtrados) {
     const dataLabel = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    if (dataLabel !== ultimaData) {
+    if (dataLabel !== ultimaData && cd) {
       cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
       ultimaData = dataLabel;
     }
-    cd.innerHTML += _renderCardTransacao(t, true);
+    if (cd) cd.innerHTML += _renderCardTransacao(t, true);
   }
 }
 
 /**
  * Gera o HTML de um card de transação para o histórico ou extrato.
- * @param {Object}  t
- * @param {boolean} [comBotaoExcluirCompra=false]
- * @returns {string}
+ * @param {Object} t - Objeto da transação.
+ * @param {boolean} [comBotaoExcluirCompra=false] - Se deve incluir botão de excluir compra.
+ * @returns {string} HTML do card.
+ * @private
  */
-function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
+ 
+ function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
   let classe = '', icone = '', tipoLabel = '', badges = '', botoes = '';
+  
+  // 🔥 CORREÇÃO: Formata a data usando parseLocalDate
+  const dataObj = parseLocalDate(t.data);
+  const dataFormatada = dataObj.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: 'short',
+    timeZone: 'America/Sao_Paulo'
+  });
 
   if (t.tipo === 'pagamento_fatura') {
-    classe = 'pagamento'; icone = '🏦'; tipoLabel = 'Pagamento';
+    classe = 'pagamento';
+    icone = '🏦';
+    tipoLabel = 'Pagamento';
     badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
-
   } else if (t.valor > 0) {
-    classe = 'receita'; icone = '💰'; tipoLabel = 'Receita';
+    classe = 'receita';
+    icone = '💰';
+    tipoLabel = 'Receita';
     badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
     botoes = `<div class="transacao-actions">
-      <button class="btn-edit"   onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
-      <button class="btn-delete" onclick="excluirItem('${t.id}')"     title="Excluir">🗑️</button>
+      <button class="btn-edit" onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
+      <button class="btn-delete" onclick="excluirItem('${t.id}')" title="Excluir">🗑️</button>
     </div>`;
-
   } else if (t.tipo === 'compra_parcelada') {
     const cartaoNome = cartoes.find(c => c.id === t.cartaoId)?.nome || 'Cartão';
-    classe = 'cartao'; icone = '💳'; tipoLabel = `Compra ${t.parcelas}x`;
+    classe = 'cartao';
+    icone = '💳';
+    tipoLabel = `Compra ${t.parcelas}x`;
     badges = `
       <span class="transacao-categoria">${escapeHtml(t.categoria)}</span>
       <span class="parcela-badge">💰 ${formatMoney(t.valorParcela)}/mês</span>
@@ -523,13 +655,14 @@ function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
     botoes = `<div class="transacao-actions">
       <button class="btn-delete" onclick="excluirCompra('${t.compraId}')" title="Excluir compra">🗑️</button>
     </div>`;
-
   } else {
-    classe = 'despesa'; icone = '💸'; tipoLabel = 'Despesa';
+    classe = 'despesa';
+    icone = '💸';
+    tipoLabel = 'Despesa';
     badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
     botoes = `<div class="transacao-actions">
-      <button class="btn-edit"   onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
-      <button class="btn-delete" onclick="excluirItem('${t.id}')"     title="Excluir">🗑️</button>
+      <button class="btn-edit" onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
+      <button class="btn-delete" onclick="excluirItem('${t.id}')" title="Excluir">🗑️</button>
     </div>`;
   }
 
@@ -540,7 +673,7 @@ function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
           <div class="transacao-header-row">
             <span class="transacao-icone">${icone}</span>
             <span class="transacao-tipo">${tipoLabel}</span>
-            <span class="transacao-data">• ${t.data.split('-').reverse().join('/')}</span>
+            <span class="transacao-data">• ${dataFormatada}</span>
           </div>
           <div class="transacao-descricao">${escapeHtml(t.descricao)}</div>
           <div class="transacao-badges">${badges}</div>
@@ -552,31 +685,41 @@ function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
       </div>
     </div>`;
 }
-
+ 
 // ---------- Navegação do extrato ----------
 
-/** Atualiza o display do mês selecionado no extrato. */
+/**
+ * Atualiza o display do mês selecionado no extrato.
+ * @param {number} mes - Mês (0-indexado).
+ * @param {number} ano - Ano.
+ */
 function atualizarDisplayMes(mes, ano) {
-  document.getElementById('current-month-display').innerHTML = `${mesesNomes[mes]} ${ano}`;
+  const display = document.getElementById('current-month-display');
+  if (display) display.innerHTML = `${mesesNomes[mes]} ${ano}`;
 }
 
-/** Navega para o mês anterior ou próximo no extrato. @param {-1|1} direcao */
+/**
+ * Navega para o mês anterior ou próximo no extrato.
+ * @param {-1|1} direcao - Direção da navegação.
+ */
 function navegarMes(direcao) {
   let mes = currentFilterMes + direcao;
   let ano = currentFilterAno;
-  if (mes < 0)  { mes = 11; ano--; }
-  if (mes > 11) { mes = 0;  ano++; }
+  if (mes < 0) { mes = 11; ano--; }
+  if (mes > 11) { mes = 0; ano++; }
   currentFilterMes = mes;
   currentFilterAno = ano;
   atualizarDisplayMes(mes, ano);
   carregarExtratoComFiltro(mes, ano);
 }
 
-/** Volta o extrato para o mês atual. */
+/**
+ * Volta o extrato para o mês atual.
+ */
 function setMesAtual() {
-  const h = new Date();
-  currentFilterMes = h.getMonth();
-  currentFilterAno = h.getFullYear();
+  const hoje = new Date();
+  currentFilterMes = hoje.getMonth();
+  currentFilterAno = hoje.getFullYear();
   atualizarDisplayMes(currentFilterMes, currentFilterAno);
   carregarExtratoComFiltro(currentFilterMes, currentFilterAno);
 }
@@ -585,6 +728,9 @@ function setMesAtual() {
 
 /**
  * Soma todas as parcelas de compras no cartão que vencem em um determinado mês/ano.
+ * @param {number} mes - Mês (0-indexado).
+ * @param {number} ano - Ano.
+ * @returns {number} Soma total das parcelas.
  * @private
  */
 function _somarParcelasDoMes(mes, ano) {
@@ -605,6 +751,9 @@ function _somarParcelasDoMes(mes, ano) {
 /**
  * Calcula o total gasto por categoria em um determinado mês/ano
  * (inclui despesas à vista + parcelas do cartão).
+ * @param {number} mes - Mês (0-indexado).
+ * @param {number} ano - Ano.
+ * @returns {Object.<string, number>} Objeto com totais por categoria.
  * @private
  */
 function _calcularGastosPorCategoria(mes, ano) {

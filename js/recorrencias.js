@@ -32,17 +32,18 @@ function verificarExibicaoGerarHoje() {
   const freqBtn = document.querySelector('#frequencia-chips .recorrencia-chip.active');
   if (!freqBtn) return;
 
-  const frequencia  = freqBtn.dataset.freq;
-  const dia         = parseInt(document.getElementById('recorrencia-dia').value);
-  const hoje        = new Date();
-  const forma       = document.getElementById('recorrencia-forma-pagamento').value;
-  const cartaoId    = document.getElementById('recorrencia-cartao')?.value;
+  const frequencia = freqBtn.dataset.freq;
+  const dia = parseInt(document.getElementById('recorrencia-dia').value);
+  const hoje = new Date();
+  const forma = document.getElementById('recorrencia-forma-pagamento').value;
+  const cartaoId = document.getElementById('recorrencia-cartao')?.value;
   let mostrar = false;
 
   if (frequencia === 'mensal') {
-    mostrar = dia === hoje.getDate();
+    const diaAjustado = ajustarDiaParaUltimoDiaDoMes(hoje.getFullYear(), hoje.getMonth(), dia);
+    mostrar = hoje.getDate() === diaAjustado;
   } else if (frequencia === 'quinzenal') {
-    const diaBase   = Math.min(dia, 15);
+    const diaBase = Math.min(dia, 15);
     const ultimoDia = getUltimoDiaMes(hoje.getFullYear(), hoje.getMonth());
     const q1 = Math.min(diaBase, ultimoDia);
     const q2 = Math.min(diaBase + 15, ultimoDia);
@@ -108,8 +109,8 @@ function selecionarFrequencia(botao) {
  * conforme a forma de pagamento escolhida.
  */
 function toggleCartaoRecorrencia() {
-  const forma  = document.getElementById('recorrencia-forma-pagamento').value;
-  const grupo  = document.getElementById('recorrencia-cartao-group');
+  const forma = document.getElementById('recorrencia-forma-pagamento').value;
+  const grupo = document.getElementById('recorrencia-cartao-group');
   const isReceita = document.getElementById('modal-titulo').innerHTML.includes('Receita');
 
   // Receitas nunca usam cartão — volta para débito se estava em cartão
@@ -139,9 +140,9 @@ function toggleCartaoRecorrencia() {
  * Calcula a próxima data de geração de uma recorrência a partir
  * de uma data de referência (padrão: hoje).
  *
- * @param {Object} rec             — Objeto de recorrência.
- * @param {Date}   [dataReferencia=new Date()]
- * @returns {Date|null}  null se já passou da data de fim.
+ * @param {Object} rec — Objeto de recorrência.
+ * @param {Date} [dataReferencia=new Date()]
+ * @returns {Date|null} null se já passou da data de fim.
  */
 function calcularProximaDataRecorrencia(rec, dataReferencia = new Date()) {
   const hoje = new Date(dataReferencia);
@@ -150,15 +151,14 @@ function calcularProximaDataRecorrencia(rec, dataReferencia = new Date()) {
   if (rec.tipo === 'mensal') {
     const ano = hoje.getFullYear();
     const mes = hoje.getMonth();
-    const ultimoDia = getUltimoDiaMes(ano, mes);
-    const diaGerar = Math.min(rec.dia, ultimoDia);
+    const diaGerar = ajustarDiaParaUltimoDiaDoMes(ano, mes, rec.dia);
 
     if (hoje.getDate() <= diaGerar) {
       proximaData = new Date(ano, mes, diaGerar);
     } else {
       const proxMes = mes === 11 ? 0 : mes + 1;
       const proxAno = mes === 11 ? ano + 1 : ano;
-      const diaProx = Math.min(rec.dia, getUltimoDiaMes(proxAno, proxMes));
+      const diaProx = ajustarDiaParaUltimoDiaDoMes(proxAno, proxMes, rec.dia);
       proximaData = new Date(proxAno, proxMes, diaProx);
     }
 
@@ -203,7 +203,7 @@ function verificarGeracaoHoje(rec) {
   const hoje = new Date();
 
   if (rec.tipo === 'mensal') {
-    const diaGerar = Math.min(rec.dia, getUltimoDiaMes(hoje.getFullYear(), hoje.getMonth()));
+    const diaGerar = ajustarDiaParaUltimoDiaDoMes(hoje.getFullYear(), hoje.getMonth(), rec.dia);
     return hoje.getDate() === diaGerar;
   }
 
@@ -228,8 +228,8 @@ function verificarGeracaoHoje(rec) {
  * Chamado na inicialização e a cada 5 minutos.
  */
 function processarRecorrencias() {
-  const hoje     = new Date();
-  const hojeStr  = formatarDataLocal(hoje);   // "YYYY-MM-DD"
+  const hoje = new Date();
+  const hojeStr = formatarDataLocal(hoje);
   let houveAlteracoes = false;
 
   for (const rec of recorrencias) {
@@ -253,10 +253,9 @@ function processarRecorrencias() {
         const dataCompra = new Date(hojeStr + 'T00:00:00');
         const diaCompra = dataCompra.getDate();
         
-        // 🔥 CORREÇÃO: Se dia da compra >= fechamento, primeira parcela vai para o próximo mês
+        // Se dia da compra >= fechamento, primeira parcela vai para o próximo mês
         const offsetMeses = diaCompra >= cartao.fechamento ? 1 : 0;
         
-        // 🔥 Guarda a data de compra real, mas o sistema saberá que deve exibir no mês correto
         compras.push({
           id: gerarId('rec_compra'),
           dataCompra: hojeStr,
@@ -298,6 +297,10 @@ function processarRecorrencias() {
   }
 
   if (houveAlteracoes) {
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
+    }
     salvarTudo();
     renderTudo();
   }
@@ -309,7 +312,7 @@ function processarRecorrencias() {
  * Renderiza a lista de recorrências e a central de assinaturas.
  */
 function renderRecorrenciasTab() {
-  const container    = document.getElementById('recorrencias-list');
+  const container = document.getElementById('recorrencias-list');
   const containerAss = document.getElementById('assinaturas-list');
   if (!container) return;
 
@@ -361,7 +364,7 @@ function _renderCardRecorrencia(r, tipo) {
   const gerarHoje = verificarGeracaoHoje(r);
   const formaTexto = r.formaPagamento === 'cartao' ? '💳 Crédito' : '🏦 Débito/Pix';
   const corValor = tipo === 'receita' ? 'var(--success)' : 'var(--danger)';
-  const prefixo  = tipo === 'receita' ? '+' : '-';
+  const prefixo = tipo === 'receita' ? '+' : '-';
 
   let statusTexto = '';
   let badgeHoje = '';
@@ -456,12 +459,14 @@ function editarRecorrencia(id) {
   const r = recorrencias.find(x => x.id === id);
   if (!r) return;
 
-  // Define limites do campo "dia" conforme frequência
-  const diaConfig = {
-    semanal:    { label: 'Dia da semana (0=Dom … 6=Sáb)', min: 0, max: 6 },
-    quinzenal:  { label: 'Dia base (1–15)',                min: 1, max: 15 },
-    mensal:     { label: 'Dia do mês (1–31)',              min: 1, max: 31 },
-  }[r.tipo] || { label: 'Dia', min: 1, max: 31 };
+  // Configura o campo "dia" conforme a frequência
+  let diaConfig = { label: 'Dia do mês (1-31)', min: 1, max: 31 };
+  
+  if (r.tipo === 'semanal') {
+    diaConfig = { label: 'Dia da semana (0=Domingo a 6=Sábado)', min: 0, max: 6 };
+  } else if (r.tipo === 'quinzenal') {
+    diaConfig = { label: 'Dia base (1-15)', min: 1, max: 15 };
+  }
 
   perguntarForm({
     icone: '🔄',
@@ -470,7 +475,7 @@ function editarRecorrencia(id) {
     campos: [
       {
         campo: 'nome',
-        label: 'Nome',
+        label: 'Nome da recorrência',
         valorInicial: r.descricao,
         required: true,
       },
@@ -492,20 +497,36 @@ function editarRecorrencia(id) {
       },
     ],
   }, ({ nome, dia, valor }) => {
-    const novoDia   = parseInt(dia);
+    const novoDia = parseInt(dia);
     const novoValor = currencyToNumber(valor);
-
-    if (!nome.trim())                                          { showToast('Nome inválido', true);  return; }
-    if (isNaN(novoDia) || novoDia < diaConfig.min || novoDia > diaConfig.max) { showToast('Dia inválido', true);   return; }
-    if (isNaN(novoValor) || novoValor <= 0)                    { showToast('Valor inválido', true); return; }
-
+    
+    if (!nome.trim()) {
+      showToast('Nome inválido', true);
+      return;
+    }
+    
+    if (isNaN(novoDia) || novoDia < diaConfig.min || novoDia > diaConfig.max) {
+      showToast(`Dia inválido (deve ser ${diaConfig.min} a ${diaConfig.max})`, true);
+      return;
+    }
+    
+    if (isNaN(novoValor) || novoValor <= 0) {
+      showToast('Valor inválido', true);
+      return;
+    }
+    
     r.descricao = nome.trim();
-    r.dia       = novoDia;
-    r.valor     = r.valor > 0 ? Math.abs(novoValor) : -Math.abs(novoValor);
-
+    r.dia = novoDia;
+    r.valor = r.valor > 0 ? Math.abs(novoValor) : -Math.abs(novoValor);
+    
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
+    }
+    
     salvarTudo();
     renderRecorrenciasTab();
-    showToast('Atualizada!');
+    showToast('✅ Recorrência atualizada!');
   });
 }
 
@@ -517,6 +538,12 @@ function toggleStatusRecorrencia(id) {
   const r = recorrencias.find(x => x.id === id);
   if (r) {
     r.ativo = !r.ativo;
+    
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
+    }
+    
     salvarTudo();
     renderRecorrenciasTab();
     showToast(r.ativo ? 'Ativada!' : 'Pausada!');
@@ -539,6 +566,12 @@ function excluirRecorrencia(id) {
     perigo: true,
   }, () => {
     recorrencias = recorrencias.filter(x => x.id !== id);
+    
+    // Invalida o cache após alterações
+    if (typeof invalidarCacheLancamentos === 'function') {
+      invalidarCacheLancamentos();
+    }
+    
     salvarTudo();
     renderRecorrenciasTab();
     showToast('Removida!');
@@ -549,16 +582,16 @@ function excluirRecorrencia(id) {
  * Atualiza os valores exibidos no card de previsão financeira.
  */
 function atualizarPrevisaoFinanceira() {
-  const receitasFixas  = recorrencias.filter(r => r.ativo && r.valor > 0).reduce((s, r) => s + r.valor, 0);
-  const despesasFixas  = recorrencias.filter(r => r.ativo && r.valor < 0).reduce((s, r) => s + Math.abs(r.valor), 0);
-  const compromissos   = compras.reduce((s, c) => s + ((c.parcelas - c.parcelasPagas) * c.valorParcela), 0);
-  const saldoPrevisto  = calcularSaldoReal() + receitasFixas - despesasFixas;
+  const receitasFixas = recorrencias.filter(r => r.ativo && r.valor > 0).reduce((s, r) => s + r.valor, 0);
+  const despesasFixas = recorrencias.filter(r => r.ativo && r.valor < 0).reduce((s, r) => s + Math.abs(r.valor), 0);
+  const compromissos = compras.reduce((s, c) => s + ((c.parcelas - c.parcelasPagas) * c.valorParcela), 0);
+  const saldoPrevisto = calcularSaldoReal() + receitasFixas - despesasFixas;
 
-  document.getElementById('previsao-receitas').textContent    = formatMoney(receitasFixas);
-  document.getElementById('previsao-despesas').textContent    = formatMoney(despesasFixas);
+  document.getElementById('previsao-receitas').textContent = formatMoney(receitasFixas);
+  document.getElementById('previsao-despesas').textContent = formatMoney(despesasFixas);
   document.getElementById('previsao-compromissos').textContent = formatMoney(compromissos);
 
   const elSaldo = document.getElementById('previsao-saldo');
-  elSaldo.textContent  = formatMoney(saldoPrevisto);
-  elSaldo.style.color  = saldoPrevisto < 0 ? '#ff6b6b' : '#ffffff';
+  elSaldo.textContent = formatMoney(saldoPrevisto);
+  elSaldo.style.color = saldoPrevisto < 0 ? '#ff6b6b' : '#ffffff';
 }
