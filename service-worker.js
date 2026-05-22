@@ -1,8 +1,13 @@
 // =============================================================================
 // service-worker.js — Cache e suporte offline para o FinanÇezas PWA
 // =============================================================================
+// ⚠️  IMPORTANTE: incremente CACHE_VERSION a cada deploy para forçar
+//     atualização nos dispositivos que já têm o app instalado.
+//     Formato sugerido: 'vANO.MES.DIA' ou simplesmente v1, v2, v3...
+// =============================================================================
 
-const CACHE_NAME = 'financezas-v1';
+const CACHE_VERSION = 'v8.5.1'; // 👈 altere aqui a cada deploy
+const CACHE_NAME    = `financezas-${CACHE_VERSION}`;
 
 // Todos os arquivos do app que devem ser cacheados para funcionar offline
 const ARQUIVOS = [
@@ -30,7 +35,9 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(ARQUIVOS))
-      .then(() => self.skipWaiting())  // ativa imediatamente sem esperar fechar abas
+      // ⚠️  NÃO chama skipWaiting() aqui automaticamente.
+      // Aguarda confirmação do cliente para evitar estado inconsistente
+      // (página antiga + SW novo ao mesmo tempo).
   );
 });
 
@@ -43,8 +50,16 @@ self.addEventListener('activate', event => {
           .filter(key => key !== CACHE_NAME)
           .map(key => caches.delete(key))
       )
-    ).then(() => self.clients.claim())  // assume controle de todas as abas abertas
+    ).then(() => self.clients.claim()) // assume controle de todas as abas abertas
   );
+});
+
+// ---------- Mensagens do cliente → SW ----------
+// O app.js envia { type: 'SKIP_WAITING' } quando o usuário aceita atualizar.
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ---------- Fetch: Cache First para arquivos locais, Network First para CDN ----------
