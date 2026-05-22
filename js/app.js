@@ -254,6 +254,80 @@ window.onclick = e => {
   }
 };
 
+// ---------- PWA: registro do Service Worker + detecção de atualização ----------
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/financezas/service-worker.js')
+    .then(registration => {
+
+      // SW novo encontrado enquanto um antigo já está ativo → mostra banner
+      registration.addEventListener('updatefound', () => {
+        const novoSW = registration.installing;
+        novoSW.addEventListener('statechange', () => {
+          if (novoSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // Há uma versão nova esperando: pede confirmação ao usuário
+            _mostrarBannerAtualizacao(novoSW);
+          }
+        });
+      });
+
+      // Verifica se já há um SW esperando (ex: aba reaberta após deploy)
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        _mostrarBannerAtualizacao(registration.waiting);
+      }
+    })
+    .catch(err => console.error('[FinanÇezas] SW registro falhou:', err));
+
+  // Quando o SW ativa a nova versão, recarrega a página automaticamente
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
+/**
+ * Exibe um banner informando que há uma nova versão disponível.
+ * @param {ServiceWorker} sw — o SW em estado 'installed' (waiting)
+ */
+function _mostrarBannerAtualizacao(sw) {
+  // Evita duplicar o banner
+  if (document.getElementById('update-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.setAttribute('role', 'alert');
+  banner.innerHTML = `
+    <div style="
+      position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+      background:#1e293b; color:white; padding:12px 20px;
+      border-radius:16px; display:flex; align-items:center; gap:12px;
+      box-shadow:0 8px 32px rgba(0,0,0,.3); z-index:9998;
+      font-size:14px; white-space:nowrap; max-width:90vw;">
+      <span style="font-size:1.4rem;">🔄</span>
+      <span>Nova versão disponível!</span>
+      <button onclick="_aplicarAtualizacao()" style="
+        background:#6366f1; color:white; border:none; border-radius:10px;
+        padding:8px 14px; font-weight:600; cursor:pointer;">Atualizar</button>
+      <button onclick="document.getElementById('update-banner').remove()" style="
+        background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem;"
+        aria-label="Dispensar">✕</button>
+    </div>`;
+  document.body.appendChild(banner);
+
+  // Guarda referência ao SW para usar ao clicar em Atualizar
+  banner._sw = sw;
+}
+
+/**
+ * Envia SKIP_WAITING ao SW em espera para ativar a nova versão.
+ * O reload é disparado automaticamente pelo evento 'controllerchange'.
+ */
+function _aplicarAtualizacao() {
+  const banner = document.getElementById('update-banner');
+  if (banner?._sw) {
+    banner._sw.postMessage({ type: 'SKIP_WAITING' });
+  }
+}
+
 // ---------- PWA: botão de instalação ----------
 
 let _pwaPrompt = null;
