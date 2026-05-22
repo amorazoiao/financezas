@@ -299,11 +299,11 @@
 <!-- ============================================================ -->
 
 <!-- Modal: Transação (receita / despesa) -->
-<div id="modal-transacao" class="modal-overlay">
+<div id="modal-transacao" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-titulo">Nova Transação</h3>
-      <button class="modal-close" onclick="fecharModal('modal-transacao')">&times;</button>
+      <button class="modal-close" onclick="fecharModal('modal-transacao')" aria-label="Fechar modal">&times;</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="transacao-id">
@@ -361,9 +361,9 @@
 </div>
 
 <!-- Modal: Cartão -->
-<div id="modal-cartao" class="modal-overlay">
+<div id="modal-cartao" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Cadastro de cartão">
   <div class="modal">
-    <div class="modal-header"><h3>💳 Cartão</h3><button class="modal-close" onclick="fecharModal('modal-cartao')">&times;</button></div>
+    <div class="modal-header"><h3>💳 Cartão</h3><button class="modal-close" onclick="fecharModal('modal-cartao')" aria-label="Fechar modal">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="cartao-editar-id">
       <div class="form-group"><label>Nome</label><input type="text" id="cartao-nome" class="form-input" placeholder="Ex: Nubank"></div>
@@ -384,9 +384,9 @@
 </div>
 
 <!-- Modal: Compra Parcelada -->
-<div id="modal-compra" class="modal-overlay">
+<div id="modal-compra" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Lançar compra parcelada">
   <div class="modal">
-    <div class="modal-header"><h3>💳 Compra Parcelada</h3><button class="modal-close" onclick="fecharModal('modal-compra')">&times;</button></div>
+    <div class="modal-header"><h3>💳 Compra Parcelada</h3><button class="modal-close" onclick="fecharModal('modal-compra')" aria-label="Fechar modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label>Cartão</label><select id="compra-cartao" class="form-select"></select></div>
       <div class="form-group"><label>Descrição</label><input type="text" id="compra-desc" class="form-input"></div>
@@ -416,9 +416,9 @@
 </div>
 
 <!-- Modal: Pagamento de Fatura -->
-<div id="modal-pagamento" class="modal-overlay">
+<div id="modal-pagamento" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Pagamento de fatura">
   <div class="modal">
-    <div class="modal-header"><h3>💳 Pagamento</h3><button class="modal-close" onclick="fecharModal('modal-pagamento')">&times;</button></div>
+    <div class="modal-header"><h3>💳 Pagamento</h3><button class="modal-close" onclick="fecharModal('modal-pagamento')" aria-label="Fechar modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group">
         <label>Valor (R$)</label>
@@ -434,14 +434,14 @@
 </div>
 
 <!-- Modal: Configurações -->
-<div id="modal-config" class="modal-overlay">
+<div id="modal-config" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Configurações">
   <div class="modal config-modal">
     <div class="modal-header config-header">
       <div>
         <h3 style="color:white; font-size:var(--font-3xl);">⚙️ Configurações</h3>
         <p style="font-size:var(--font-md); opacity:0.8; margin-top:2px;">Personalize sua experiência</p>
       </div>
-      <button class="modal-close" onclick="fecharModal('modal-config')" style="color:white; font-size:var(--font-4xl);">&times;</button>
+      <button class="modal-close" onclick="fecharModal('modal-config')" style="color:white; font-size:var(--font-4xl);" aria-label="Fechar configurações">&times;</button>
     </div>
     <div class="config-tabs">
       <button class="config-tab active" onclick="switchConfigTab('categorias')">🏷️ Categorias</button>
@@ -545,9 +545,9 @@
 </div>
 
 <!-- Modal: Meta de Reserva -->
-<div id="modal-meta" class="modal-overlay">
+<div id="modal-meta" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Nova meta de reserva">
   <div class="modal">
-    <div class="modal-header"><h3>🎯 Nova Meta</h3><button class="modal-close" onclick="fecharModal('modal-meta')">&times;</button></div>
+    <div class="modal-header"><h3>🎯 Nova Meta</h3><button class="modal-close" onclick="fecharModal('modal-meta')" aria-label="Fechar modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label>Nome</label><input type="text" id="meta-nome" class="form-input"></div>
       <div class="form-group"><label>Objetivo (R$)</label><input type="number" id="meta-valor" class="form-input" step="0.01"></div>
@@ -560,9 +560,9 @@
 </div>
 
 <!-- Modal: Orçamento -->
-<div id="modal-orcamento" class="modal-overlay">
+<div id="modal-orcamento" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Orçamento por categoria">
   <div class="modal">
-    <div class="modal-header"><h3>🎯 Novo Orçamento</h3><button class="modal-close" onclick="fecharModal('modal-orcamento')">&times;</button></div>
+    <div class="modal-header"><h3>🎯 Novo Orçamento</h3><button class="modal-close" onclick="fecharModal('modal-orcamento')" aria-label="Fechar modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label>Categoria</label><select id="orcamento-categoria" class="form-select"></select></div>
       <div class="form-group">
