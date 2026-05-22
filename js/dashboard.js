@@ -163,6 +163,7 @@ function _atualizarUsoCartoes() {
 
 /**
  * Renderiza o gráfico de evolução patrimonial dos últimos 12 meses.
+ * Reutiliza a instância existente com chart.update() para evitar reflow.
  * @global evolutionChart
  */
 function renderEvolutionChart() {
@@ -201,23 +202,34 @@ function renderEvolutionChart() {
     });
   }
 
-  if (evolutionChart) evolutionChart.destroy();
-
   const ctx = document.getElementById('evolution-chart');
   if (!ctx) return;
-  
+
+  const labels  = dados.map(d => d.mes);
+  const valores = dados.map(d => d.saldo);
+  const pontos  = valores.map(v => v >= 0 ? '#22c55e' : '#ef4444');
+
+  // ✅ Reutiliza a instância existente em vez de destruir e recriar
+  if (evolutionChart) {
+    evolutionChart.data.labels = labels;
+    evolutionChart.data.datasets[0].data   = valores;
+    evolutionChart.data.datasets[0].pointBackgroundColor = pontos;
+    evolutionChart.update('none'); // 'none' = sem animação, mais rápido
+    return;
+  }
+
   evolutionChart = new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: {
-      labels: dados.map(d => d.mes),
+      labels,
       datasets: [{
         label: 'Saldo',
-        data: dados.map(d => d.saldo),
+        data: valores,
         borderColor: '#4f46e5',
         backgroundColor: 'rgba(79,70,229,0.1)',
         fill: true,
         tension: 0.3,
-        pointBackgroundColor: dados.map(d => d.saldo >= 0 ? '#22c55e' : '#ef4444'),
+        pointBackgroundColor: pontos,
         pointBorderColor: '#fff',
         pointRadius: 4,
       }],
@@ -510,6 +522,7 @@ function renderHistorico() {
     return;
   }
 
+  // ✅ Usa insertAdjacentHTML para evitar múltiplos reflows no loop
   container.innerHTML = '<div class="transacoes-container"></div>';
   const cd = container.querySelector('.transacoes-container');
   let ultimaData = '';
@@ -518,10 +531,10 @@ function renderHistorico() {
     const dataObj = parseLocalDate(t.data);
     const dataLabel = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
+      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
-    if (cd) cd.innerHTML += _renderCardTransacao(t);
+    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t));
   }
 }
 
@@ -594,17 +607,19 @@ function _renderListaExtrato(filtrados) {
     return;
   }
 
+  // ✅ insertAdjacentHTML evita reflows múltiplos em loops longos
   container.innerHTML = '<div class="transacoes-container"></div>';
   const cd = container.querySelector('.transacoes-container');
   let ultimaData = '';
 
   for (const t of filtrados) {
-    const dataLabel = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    // ✅ parseLocalDate evita o deslocamento de fuso UTC ao usar YYYY-MM-DD
+    const dataLabel = parseLocalDate(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
+      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
-    if (cd) cd.innerHTML += _renderCardTransacao(t, true);
+    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t, true));
   }
 }
 

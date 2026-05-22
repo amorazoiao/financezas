@@ -61,7 +61,72 @@ function goToScreen(screenId) {
   if (navigator.vibrate) navigator.vibrate(10);
 }
 
-// ---------- Bottom Sheets ----------
+// ---------- Acessibilidade: trap de foco em modais ----------
+
+/**
+ * Captura e mantém o foco dentro do modal aberto (WCAG 2.1 - 2.1.2).
+ * Retorna uma função para remover o listener quando o modal fechar.
+ * @param {HTMLElement} modal
+ * @returns {Function} cleanup
+ */
+function _trapFocus(modal) {
+  const focaveis = modal.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focaveis.length) return () => {};
+
+  const primeiro = focaveis[0];
+  const ultimo   = focaveis[focaveis.length - 1];
+
+  function handler(e) {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey) {
+      if (document.activeElement === primeiro) {
+        e.preventDefault();
+        ultimo.focus();
+      }
+    } else {
+      if (document.activeElement === ultimo) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    }
+  }
+
+  modal.addEventListener('keydown', handler);
+  // Foca o primeiro input ou o primeiro botão focável
+  const primeiroInput = modal.querySelector('input:not([type="hidden"]), select');
+  (primeiroInput || primeiro)?.focus();
+
+  return () => modal.removeEventListener('keydown', handler);
+}
+
+// Mapa para armazenar os cleanups de trap de foco por modal ID
+const _trapCleanups = {};
+
+/**
+ * Abre um modal com acessibilidade completa:
+ * ativa aria-hidden no fundo, faz trap de foco e restaura foco ao fechar.
+ * @param {string} modalId
+ */
+function abrirModalAcessivel(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+
+  // Salva o elemento que estava com foco antes de abrir
+  modal._focoAnterior = document.activeElement;
+
+  modal.style.display = 'flex';
+  document.getElementById('appContainer')?.setAttribute('aria-hidden', 'true');
+
+  // Aguarda o display:flex computar antes de focar
+  requestAnimationFrame(() => {
+    if (_trapCleanups[modalId]) _trapCleanups[modalId]();
+    _trapCleanups[modalId] = _trapFocus(modal);
+  });
+}
+
+
 
 /**
  * Exibe um bottom sheet pelo ID.

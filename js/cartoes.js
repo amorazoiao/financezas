@@ -220,7 +220,8 @@ function renderOperacoesFatura() {
   let ultimaData = '';
 
   for (const parcela of fatura.parcelas) {
-    const dataLabel = new Date(parcela.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
+    // ✅ parseLocalDate evita deslocamento de fuso ao interpretar YYYY-MM-DD
+    const dataLabel = parseLocalDate(parcela.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
     if (dataLabel !== ultimaData) {
       html += `<div class="operacao-section-header">${dataLabel}</div>`;
       ultimaData = dataLabel;

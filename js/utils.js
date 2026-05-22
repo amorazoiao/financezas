@@ -271,10 +271,29 @@ function setupMoneyInputs() {
 }
 
 /**
- * Fecha um modal pelo seu ID.
+ * Fecha um modal pelo seu ID, restaura o foco ao elemento anterior
+ * e remove aria-hidden do container principal.
  * @param {string} id
  */
 function fecharModal(id) {
   const el = document.getElementById(id);
-  if (el) el.style.display = 'none';
+  if (!el) return;
+  el.style.display = 'none';
+
+  // Remove aria-hidden do app quando todos os modais estão fechados
+  const algumAberto = ['modal-transacao','modal-cartao','modal-compra','modal-config',
+    'modal-meta','modal-pagamento','modal-orcamento']
+    .some(mid => {
+      const m = document.getElementById(mid);
+      return m && m.style.display !== 'none';
+    });
+  if (!algumAberto) {
+    document.getElementById('appContainer')?.removeAttribute('aria-hidden');
+  }
+
+  // Restaura o foco ao elemento que estava ativo antes do modal abrir
+  if (el._focoAnterior && typeof el._focoAnterior.focus === 'function') {
+    el._focoAnterior.focus();
+    el._focoAnterior = null;
+  }
 }
