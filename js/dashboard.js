@@ -11,13 +11,46 @@
 const CATEGORIAS_ESSENCIAIS = ['Alimentação', 'Moradia', 'Saúde', 'Educação', 'Contas', 'Transporte'];
 
 /**
+ * Paleta semântica: cada categoria tem cor fixa em todos os gráficos.
+ * @constant {Object.<string, string>}
+ */
+const CATEGORY_COLORS = {
+  'Salário':          '#1D9E75',
+  'Freelance':        '#0F6E56',
+  'Investimentos':    '#185FA5',
+  'Presentes':        '#D4537E',
+  'Alimentação':      '#EF9F27',
+  'Moradia':          '#BA7517',
+  'Transporte':       '#378ADD',
+  'Saúde':            '#2ED573',
+  'Educação':         '#534AB7',
+  'Contas':           '#888780',
+  'Lazer':            '#D85A30',
+  'Outros':           '#B4B2A9',
+  'Pagamento Fatura': '#5F5E5A',
+  'Reserva':          '#97C459',
+};
+const FALLBACK_COLORS = ['#A55EEA','#FF6B81','#00CED1','#FF9800','#70A1FF','#FF69B4','#7FDBFF','#01FF70'];
+
+function getCategoriaColor(categoria) {
+  if (CATEGORY_COLORS[categoria]) return CATEGORY_COLORS[categoria];
+  let hash = 0;
+  for (let i = 0; i < categoria.length; i++) hash = (hash * 31 + categoria.charCodeAt(i)) | 0;
+  return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
+}
+
+function getCategoriaColorAlpha(categoria, alpha = 0.15) {
+  const hex = getCategoriaColor(categoria);
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
  * Paleta de cores para o gráfico de distribuição (doughnut).
+ * Mantida para compatibilidade; prefer getCategoriaColor().
  * @constant {string[]}
  */
-const CHART_COLORS = [
-  '#FF4757', '#1E90FF', '#FFA502', '#2ED573', '#A55EEA',
-  '#70A1FF', '#FF6B81', '#FF9800', '#00CED1', '#FF69B4',
-];
+const CHART_COLORS = Object.values(CATEGORY_COLORS);
 
 // ---------- Estado do mês selecionado no dashboard ----------
 /** @type {number} Mês (0-11) selecionado no dashboard. */
@@ -36,22 +69,303 @@ function dashNavMes(dir) {
   atualizarDashboard();
 }
 
+// ---------- Linha 1 — Saldo atual, previsto, economia ----------
+
+/**
+ * Renderiza os três cards de saldo da Linha 1.
+ * @private
+ */
+function _renderLinha1() {
+  const mes = new Date().getMonth();
+  const ano = new Date().getFullYear();
+
+  // Saldo atual
+  const saldo = calcularSaldoReal();
+  const elSaldo = document.getElementById('hero-balance');
+  if (elSaldo) {
+    elSaldo.textContent = formatMoney(saldo);
+    elSaldo.style.color = saldo < 0 ? '#ff6b6b' : '';
+  }
+
+  // Receitas e despesas do mês corrente
+  const recMes = lancamentos
+    .filter(l => { const d = parseLocalDate(l.data); return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano; })
+    .reduce((s, l) => s + l.valor, 0);
+  const despMes = lancamentos
+    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano; })
+    .reduce((s, l) => s + Math.abs(l.valor), 0) + _somarParcelasDoMes(mes, ano);
+
+  const elRec  = document.getElementById('hero-receitas');
+  const elDesp = document.getElementById('hero-despesas');
+  if (elRec)  elRec.textContent  = formatMoney(recMes);
+  if (elDesp) elDesp.textContent = formatMoney(despMes);
+
+  // Saldo previsto (saldo atual + recorrências do próximo ciclo)
+  const recFixas  = recorrencias.filter(r => r.ativo && r.valor > 0).reduce((s, r) => s + r.valor, 0);
+  const despFixas = recorrencias.filter(r => r.ativo && r.valor < 0).reduce((s, r) => s + Math.abs(r.valor), 0);
+  const previsto  = saldo + recFixas - despFixas;
+  const elPrev = document.getElementById('db-saldo-previsto');
+  if (elPrev) {
+    elPrev.textContent = formatMoney(previsto);
+    elPrev.style.color = previsto < 0 ? '#dc2626' : '';
+  }
+
+  // Economia do mês
+  const economia = recMes - despMes;
+  const taxa     = recMes > 0 ? ((economia / recMes) * 100).toFixed(1) : 0;
+  const elEcon   = document.getElementById('db-economia');
+  const elTaxa   = document.getElementById('db-taxa-poupanca');
+  if (elEcon) {
+    elEcon.textContent = formatMoney(Math.abs(economia));
+    elEcon.style.color = economia < 0 ? '#dc2626' : '';
+  }
+  if (elTaxa) elTaxa.textContent = economia >= 0
+    ? `${taxa}% da renda poupada`
+    : `${Math.abs(taxa)}% acima da renda`;
+}
+
+// ---------- Label do mês no gráfico ----------
+function _atualizarChartMesLabel() {
+  const el = document.getElementById('db-chart-mes-label');
+  if (el) el.textContent = `${mesesNomes[dashMes].substring(0,3)} ${dashAno}`;
+}
+
+// ---------- Linha 3 — Categorias, Cartões, Orçamentos ----------
+
+/**
+ * Renderiza os três mini-cards da Linha 3.
+ * @private
+ */
+function _renderLinha3() {
+  _renderMiniCategorias();
+  _renderMiniCartoes();
+  _renderMiniOrcamentos();
+}
+
+/** @private Top-4 categorias de despesa do mês */
+function _renderMiniCategorias() {
+  const container = document.getElementById('db-categorias-lista');
+  if (!container) return;
+
+  const gastos = _calcularGastosPorCategoria(dashMes, dashAno);
+  const total  = Object.values(gastos).reduce((s, v) => s + v, 0);
+  const top    = Object.entries(gastos).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
+  if (top.length === 0) {
+    container.innerHTML = '<div class="db-mini-empty">Sem gastos este mês</div>';
+    return;
+  }
+
+  container.innerHTML = top.map(([cat, val]) => {
+    const pct  = total > 0 ? (val / total * 100).toFixed(0) : 0;
+    const cor  = getCategoriaColor(cat);
+    return `
+      <div>
+        <div class="db-mini-row">
+          <div class="db-mini-dot" style="background:${cor};"></div>
+          <div class="db-mini-nome">${escapeHtml(cat)}</div>
+          <div class="db-mini-val">${pct}%</div>
+        </div>
+        <div class="db-prog-bg">
+          <div class="db-prog-fill" style="width:${pct}%; background:${cor};"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/** @private Cartões com limite utilizado */
+function _renderMiniCartoes() {
+  const container = document.getElementById('db-cartoes-lista');
+  const empty     = document.getElementById('db-cartoes-empty');
+  if (!container) return;
+
+  if (cartoes.length === 0) {
+    container.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  container.style.display = 'flex';
+
+  container.innerHTML = cartoes.slice(0, 3).map(c => {
+    const usado = getTotalUtilizadoCartao(c.id);
+    const pct   = c.limite > 0 ? Math.min(usado / c.limite * 100, 100) : 0;
+    const cor   = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#1D9E75';
+    return `
+      <div>
+        <div class="db-mini-row">
+          <div class="db-mini-dot" style="background:${cor};"></div>
+          <div class="db-mini-nome">${escapeHtml(c.nome)}</div>
+          <div class="db-mini-val">${formatMoney(usado)}</div>
+        </div>
+        <div class="db-prog-bg">
+          <div class="db-prog-fill" style="width:${pct}%; background:${cor};"></div>
+        </div>
+        <div class="db-cartao-limite">${pct.toFixed(0)}% de ${formatMoney(c.limite)}</div>
+      </div>`;
+  }).join('');
+}
+
+/** @private Orçamentos do mês com progresso */
+function _renderMiniOrcamentos() {
+  const container = document.getElementById('db-orcamentos-lista');
+  const empty     = document.getElementById('db-orcamentos-empty');
+  if (!container) return;
+
+  const orcsMes = orcamentos.filter(o => o.mes === dashMes && o.ano === dashAno);
+  if (orcsMes.length === 0) {
+    container.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  container.style.display = 'flex';
+
+  const gastos = _calcularGastosPorCategoria(dashMes, dashAno);
+  container.innerHTML = orcsMes.slice(0, 4).map(o => {
+    const gasto = gastos[o.categoria] || 0;
+    const pct   = o.limite > 0 ? Math.min(gasto / o.limite * 100, 100) : 0;
+    const cor   = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#1D9E75';
+    return `
+      <div>
+        <div class="db-mini-row">
+          <div class="db-mini-dot" style="background:${cor};"></div>
+          <div class="db-mini-nome">${escapeHtml(o.categoria)}</div>
+          <div class="db-mini-val">${pct.toFixed(0)}%</div>
+        </div>
+        <div class="db-prog-bg">
+          <div class="db-prog-fill" style="width:${pct}%; background:${cor};"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ---------- Linha 4 — Insights automáticos ----------
+
+/**
+ * Gera insights automáticos com base nos dados do mês.
+ * @private
+ */
+function _renderInsights() {
+  const container = document.getElementById('db-insights-lista');
+  if (!container) return;
+
+  const hoje  = new Date();
+  const mes   = hoje.getMonth();
+  const ano   = hoje.getFullYear();
+  const isMesAtual = (dashMes === mes && dashAno === ano);
+  const insights = [];
+
+  const recMes = lancamentos
+    .filter(l => { const d = parseLocalDate(l.data); return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === dashMes && d.getFullYear() === dashAno; })
+    .reduce((s, l) => s + l.valor, 0);
+  const despMes = lancamentos
+    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === dashMes && d.getFullYear() === dashAno; })
+    .reduce((s, l) => s + Math.abs(l.valor), 0) + _somarParcelasDoMes(dashMes, dashAno);
+
+  // 1. Taxa de poupança
+  if (recMes > 0) {
+    const taxa = ((recMes - despMes) / recMes * 100);
+    if (taxa >= 20) {
+      insights.push({ icon: '🏆', text: `Ótima taxa de poupança: <strong>${taxa.toFixed(1)}%</strong> da renda guardada este mês.` });
+    } else if (taxa > 0) {
+      insights.push({ icon: '💡', text: `Taxa de poupança de <strong>${taxa.toFixed(1)}%</strong>. Meta recomendada: pelo menos 20%.` });
+    } else {
+      insights.push({ icon: '⚠️', text: `Gastos <strong>${formatMoney(despMes - recMes)}</strong> acima da renda este mês.` });
+    }
+  }
+
+  // 2. Categoria campeã de gastos
+  const gastos = _calcularGastosPorCategoria(dashMes, dashAno);
+  const [topCat, topVal] = Object.entries(gastos).sort((a, b) => b[1] - a[1])[0] || [];
+  if (topCat && recMes > 0) {
+    const pctCat = (topVal / recMes * 100).toFixed(1);
+    insights.push({ icon: '📂', text: `<strong>${escapeHtml(topCat)}</strong> foi sua maior despesa: ${formatMoney(topVal)} (${pctCat}% da renda).` });
+  }
+
+  // 3. Tendência vs mês anterior
+  const mesAnt = dashMes === 0 ? 11 : dashMes - 1;
+  const anoAnt = dashMes === 0 ? dashAno - 1 : dashAno;
+  const despAnt = lancamentos
+    .filter(l => { const d = parseLocalDate(l.data); return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mesAnt && d.getFullYear() === anoAnt; })
+    .reduce((s, l) => s + Math.abs(l.valor), 0) + _somarParcelasDoMes(mesAnt, anoAnt);
+  if (despAnt > 0) {
+    const delta = ((despMes - despAnt) / despAnt * 100);
+    if (delta > 10) {
+      insights.push({ icon: '📈', text: `Gastos <strong>${delta.toFixed(1)}% maiores</strong> que ${mesesNomes[mesAnt]}. Vale revisar.` });
+    } else if (delta < -10) {
+      insights.push({ icon: '📉', text: `Gastos <strong>${Math.abs(delta).toFixed(1)}% menores</strong> que ${mesesNomes[mesAnt]}. Bom controle!` });
+    }
+  }
+
+  // 4. Orçamentos estourados
+  if (isMesAtual) {
+    const orcsMes = orcamentos.filter(o => o.mes === mes && o.ano === ano);
+    for (const o of orcsMes) {
+      const gasto = gastos[o.categoria] || 0;
+      const pct   = gasto / o.limite * 100;
+      if (pct >= 100) {
+        insights.push({ icon: '🔴', text: `Orçamento de <strong>${escapeHtml(o.categoria)}</strong> estourado: ${formatMoney(gasto)} de ${formatMoney(o.limite)}.` });
+      } else if (pct >= 80) {
+        insights.push({ icon: '🟡', text: `Orçamento de <strong>${escapeHtml(o.categoria)}</strong> em ${pct.toFixed(0)}% — restam ${formatMoney(o.limite - gasto)}.` });
+      }
+    }
+
+    // 5. Cartão com limite alto
+    for (const c of cartoes) {
+      const usado = getTotalUtilizadoCartao(c.id);
+      const pct   = c.limite > 0 ? usado / c.limite * 100 : 0;
+      if (pct > 80) {
+        insights.push({ icon: '💳', text: `Cartão <strong>${escapeHtml(c.nome)}</strong> com ${pct.toFixed(0)}% do limite utilizado.` });
+      }
+    }
+
+    // 6. Projeção fim de mês
+    const diaAtual  = hoje.getDate();
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+    if (diaAtual > 0 && recMes > 0) {
+      const projecao = despMes + (despMes / diaAtual) * (diasNoMes - diaAtual);
+      if (projecao > recMes) {
+        insights.push({ icon: '🔮', text: `Projeção de gastos até fim do mês: <strong>${formatMoney(projecao)}</strong> — acima da renda.` });
+      }
+    }
+
+    // 7. Saldo negativo
+    if (calcularSaldoReal() < 0) {
+      insights.push({ icon: '🔴', text: `Saldo atual negativo: <strong>${formatMoney(calcularSaldoReal())}</strong>.` });
+    }
+  }
+
+  if (insights.length === 0) {
+    container.innerHTML = '<div class="db-insight-empty">Tudo certo por aqui! Nenhum alerta para este mês. 🎉</div>';
+    return;
+  }
+
+  container.innerHTML = insights.map(i => `
+    <div class="db-insight-item">
+      <span class="db-insight-icon">${i.icon}</span>
+      <span class="db-insight-text">${i.text}</span>
+    </div>`).join('');
+}
+
 // ---------- Ponto de entrada do dashboard ----------
 
 /**
- * Atualiza todos os elementos visuais do dashboard:
- * saldo hero, análise do mês, gráficos, métricas e histórico.
+ * Atualiza todos os elementos visuais do dashboard (4 linhas).
  */
 function atualizarDashboard() {
+  _renderLinha1();        // saldo atual, previsto, economia
+  atualizarGrafico();     // doughnut (usa dashMes/dashAno)
+  renderEvolutionChart(); // barras + linha
+  _atualizarChartMesLabel();
+  _renderLinha3();        // categorias, cartões, orçamentos
+  _renderInsights();      // linha 4
+  renderHistorico();
+
+  // IDs legados (mantidos para compatibilidade com outras telas)
   _atualizarHeroBalance();
   _atualizarAnalise();
-  _atualizarUsoCartoes();
-  atualizarGrafico();
-  renderEvolutionChart();
   calcularMetricasAvancadas();
-  renderHistorico();
-  atualizarReservaDisplay();
-  renderSmartAlerts();
 }
 
 // ---------- Hero balance ----------
@@ -163,25 +477,27 @@ function _atualizarUsoCartoes() {
 
 /**
  * Renderiza o gráfico de evolução patrimonial dos últimos 12 meses.
- * Reutiliza a instância existente com chart.update() para evitar reflow.
  * @global evolutionChart
  */
 function renderEvolutionChart() {
-  const dados = [];
+  const labels    = [];
+  const receitas  = [];
+  const despesas  = [];
+  const saldos    = [];
 
   for (let i = 11; i >= 0; i--) {
     const ref = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
     const mes = ref.getMonth();
     const ano = ref.getFullYear();
 
-    const receitas = lancamentos
+    const rec = lancamentos
       .filter(l => {
         const d = parseLocalDate(l.data);
         return l.valor > 0 && l.tipo !== 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano;
       })
       .reduce((s, l) => s + l.valor, 0);
 
-    const despesas = lancamentos
+    const desp = lancamentos
       .filter(l => {
         const d = parseLocalDate(l.data);
         return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
@@ -189,59 +505,156 @@ function renderEvolutionChart() {
       .reduce((s, l) => s + Math.abs(l.valor), 0);
 
     const parcelas = _somarParcelasDoMes(mes, ano);
-    const pagamentos = lancamentos
+    const pags = lancamentos
       .filter(l => {
         const d = parseLocalDate(l.data);
         return l.tipo === 'pagamento_fatura' && d.getMonth() === mes && d.getFullYear() === ano;
       })
       .reduce((s, l) => s + Math.abs(l.valor), 0);
 
-    dados.push({
-      mes: `${mesesNomes[mes].substring(0, 3)}/${ano}`,
-      saldo: receitas - despesas - pagamentos - parcelas,
-    });
+    const despTotal = desp + parcelas + pags;
+
+    labels.push(`${mesesNomes[mes].substring(0, 3)}/${String(ano).slice(2)}`);
+    receitas.push(parseFloat(rec.toFixed(2)));
+    despesas.push(parseFloat(despTotal.toFixed(2)));
+    saldos.push(parseFloat((rec - despTotal).toFixed(2)));
   }
 
   const ctx = document.getElementById('evolution-chart');
   if (!ctx) return;
 
-  const labels  = dados.map(d => d.mes);
-  const valores = dados.map(d => d.saldo);
-  const pontos  = valores.map(v => v >= 0 ? '#22c55e' : '#ef4444');
+  // Remove estilo inline antigo — altura vem do CSS do .db-bars-wrap
+  ctx.style.width  = '';
+  ctx.style.height = '';
 
-  // ✅ Reutiliza a instância existente em vez de destruir e recriar
+  // Cores semânticas fixas
+  const COR_RECEITA  = '#1D9E75';  // teal
+  const COR_DESPESA  = '#E24B4A';  // vermelho
+  const COR_SALDO_POS = '#534AB7'; // roxo — saldo positivo
+  const COR_SALDO_NEG = '#D85A30'; // coral — saldo negativo
+
+  const pontosCorSaldo = saldos.map(v => v >= 0 ? COR_SALDO_POS : COR_SALDO_NEG);
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Receita',
+      data: receitas,
+      backgroundColor: `${COR_RECEITA}CC`,   // 80% opacidade
+      hoverBackgroundColor: COR_RECEITA,
+      borderRadius: 4,
+      borderSkipped: false,
+      yAxisID: 'y',
+      order: 2,
+    },
+    {
+      type: 'bar',
+      label: 'Despesa',
+      data: despesas,
+      backgroundColor: `${COR_DESPESA}CC`,
+      hoverBackgroundColor: COR_DESPESA,
+      borderRadius: 4,
+      borderSkipped: false,
+      yAxisID: 'y',
+      order: 2,
+    },
+    {
+      type: 'line',
+      label: 'Saldo',
+      data: saldos,
+      borderColor: pontosCorSaldo,            // segmento a segmento
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      tension: 0.35,
+      pointBackgroundColor: pontosCorSaldo,
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      yAxisID: 'y',
+      order: 1,                               // renderiza na frente das barras
+      segment: {
+        // Linha muda de cor quando cruza zero
+        borderColor: ctx => saldos[ctx.p1DataIndex] >= 0 ? COR_SALDO_POS : COR_SALDO_NEG,
+      },
+    },
+  ];
+
+  const tooltipCallbacks = {
+    title: ctx => ctx[0].label,
+    label: ctx => {
+      const prefixo = ctx.dataset.label;
+      const val = formatMoney(Math.abs(ctx.raw));
+      const sinal = ctx.dataset.label === 'Saldo' && ctx.raw < 0 ? '▼ ' : '';
+      return `  ${prefixo}: ${sinal}${val}`;
+    },
+    afterBody: ctx => {
+      const idx = ctx[0].dataIndex;
+      const economia = receitas[idx] > 0
+        ? `  Taxa de poupança: ${((saldos[idx] / receitas[idx]) * 100).toFixed(1)}%`
+        : '';
+      return economia ? [economia] : [];
+    },
+  };
+
+  const scalesConfig = {
+    x: {
+      grid: { display: false },
+      ticks: { font: { size: 10 }, maxRotation: 0 },
+    },
+    y: {
+      grid: { color: 'rgba(0,0,0,0.05)' },
+      ticks: {
+        callback: v => {
+          if (Math.abs(v) >= 1000) return `R$${(v / 1000).toFixed(0)}k`;
+          return `R$${v}`;
+        },
+        font: { size: 10 },
+        maxTicksLimit: 6,
+      },
+    },
+  };
+
+  // ✅ Reutiliza instância existente
   if (evolutionChart) {
-    evolutionChart.data.labels = labels;
-    evolutionChart.data.datasets[0].data   = valores;
-    evolutionChart.data.datasets[0].pointBackgroundColor = pontos;
-    evolutionChart.update('none'); // 'none' = sem animação, mais rápido
+    evolutionChart.data.labels   = labels;
+    evolutionChart.data.datasets = datasets;
+    evolutionChart.options.plugins.tooltip.callbacks = tooltipCallbacks;
+    evolutionChart.update('none');
     return;
   }
 
   evolutionChart = new Chart(ctx.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Saldo',
-        data: valores,
-        borderColor: '#4f46e5',
-        backgroundColor: 'rgba(79,70,229,0.1)',
-        fill: true,
-        tension: 0.3,
-        pointBackgroundColor: pontos,
-        pointBorderColor: '#fff',
-        pointRadius: 4,
-      }],
-    },
+    type: 'bar',                              // tipo base; datasets sobrescrevem individualmente
+    data: { labels, datasets },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false }, // tooltip agrupa os 3 datasets
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `Saldo: ${formatMoney(ctx.raw)}` } },
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            font: { size: 11 },
+            padding: 12,
+            usePointStyle: true,
+            pointStyleWidth: 8,
+            color: getComputedStyle(document.body).getPropertyValue('--color-text') || '#374151',
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15,23,42,0.9)',
+          titleFont: { size: 12, weight: '500' },
+          bodyFont:  { size: 12 },
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: tooltipCallbacks,
+        },
       },
-      scales: { y: { ticks: { callback: v => formatMoney(v) } } },
+      scales: scalesConfig,
+      animation: { duration: 500, easing: 'easeOutQuart' },
     },
   });
 }
@@ -252,9 +665,8 @@ function renderEvolutionChart() {
  * @global chart
  */
 function atualizarGrafico() {
-  const hoje = new Date();
-  const mes = hoje.getMonth();
-  const ano = hoje.getFullYear();
+  const mes = dashMes;
+  const ano = dashAno;
   let itens = [];
 
   if (chartType === 'receita') {
@@ -267,7 +679,6 @@ function atualizarGrafico() {
       const d = parseLocalDate(l.data);
       return l.valor < 0 && l.tipo === 'despesa_avista' && d.getMonth() === mes && d.getFullYear() === ano;
     });
-
     const parcelas = [];
     for (const compra of compras) {
       const cartao = cartoes.find(c => c.id === compra.cartaoId);
@@ -282,21 +693,23 @@ function atualizarGrafico() {
     itens = [...despesas, ...parcelas];
   }
 
-  const canvas = document.getElementById('chart');
+  const canvas   = document.getElementById('chart');
   const emptyDiv = document.getElementById('chart-empty');
-
+  const centerDiv = document.getElementById('chart-center-text');
   if (!canvas) return;
 
   if (itens.length === 0) {
     canvas.style.display = 'none';
-    if (emptyDiv) emptyDiv.style.display = 'block';
+    if (emptyDiv)  emptyDiv.style.display  = 'block';
+    if (centerDiv) { centerDiv.classList.add('hidden'); centerDiv.style.display = ''; }
+    if (chart) { chart.destroy(); chart = null; }
     return;
   }
 
   canvas.style.display = 'block';
   if (emptyDiv) emptyDiv.style.display = 'none';
 
-  // Agrupa por categoria
+  // Agrupa por categoria e calcula total
   const grupos = {};
   let total = 0;
   for (const item of itens) {
@@ -305,39 +718,98 @@ function atualizarGrafico() {
     total += val;
   }
 
-  if (chart) chart.destroy();
+  // Ordena do maior para o menor (leitura mais natural no doughnut)
+  const categorias = Object.keys(grupos).sort((a, b) => grupos[b] - grupos[a]);
+  const valores    = categorias.map(c => grupos[c]);
+  const cores      = categorias.map(c => getCategoriaColor(c));
+  const coresFade  = categorias.map(c => getCategoriaColorAlpha(c, 0.7));
 
-  chart = new Chart(canvas, {
-    type: 'doughnut',
-    data: {
-      labels: Object.keys(grupos),
-      datasets: [{
-        data: Object.values(grupos),
-        backgroundColor: CHART_COLORS,
-        borderWidth: 0,
-        cutout: '70%',
-      }],
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => `${ctx.label}: ${formatMoney(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)`,
-          },
+  // Legenda HTML externa (fora do canvas — garante centro geométrico exato)
+  const legendaEl = document.getElementById('donut-legenda');
+  if (legendaEl) {
+    legendaEl.innerHTML = categorias.map((cat, i) => `
+      <div class="donut-leg-item" onclick="_toggleDonutSlice(${i})">
+        <span class="donut-leg-dot" style="background:${cores[i]};"></span>
+        <span class="donut-leg-nome">${escapeHtml(cat)}</span>
+        <span class="donut-leg-pct">${((valores[i]/total)*100).toFixed(1)}%</span>
+      </div>`).join('');
+  }
+
+  // Configuração de tooltip (legenda removida do canvas)
+  const pluginsConfig = {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(15,23,42,0.9)',
+      titleFont: { size: 12, weight: '500' },
+      bodyFont:  { size: 13 },
+      padding: 10,
+      cornerRadius: 8,
+      callbacks: {
+        title: ctx => ctx[0].label,
+        label: ctx => {
+          const pct = ((ctx.raw / total) * 100).toFixed(1);
+          return `  ${formatMoney(ctx.raw)}  (${pct}%)`;
         },
       },
     },
-  });
+  };
 
-  const centerDiv = document.getElementById('chart-center-text');
+  // ✅ Reutiliza instância com update() — sem destroy/create
+  if (chart && chart.config.type === 'doughnut') {
+    chart.data.labels                        = categorias;
+    chart.data.datasets[0].data             = valores;
+    chart.data.datasets[0].backgroundColor  = coresFade;
+    chart.data.datasets[0].hoverBackgroundColor = cores;
+    chart.options.plugins.legend            = pluginsConfig.legend;
+    chart.options.plugins.tooltip           = pluginsConfig.tooltip;
+    chart.update('active');
+  } else {
+    if (chart) chart.destroy();
+    chart = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: categorias,
+        datasets: [{
+          data: valores,
+          backgroundColor:      coresFade,
+          hoverBackgroundColor: cores,
+          borderWidth: 2,
+          borderColor: 'transparent',
+          hoverBorderColor: '#fff',
+          hoverOffset: 6,
+          cutout: '72%',
+        }],
+      },
+      options: {
+        responsive: false,
+        animation: { duration: 400, easing: 'easeOutQuart' },
+        plugins: pluginsConfig,
+      },
+    });
+  }
+
+  // Texto central com total
   if (centerDiv) {
-    centerDiv.style.display = 'block';
+    centerDiv.classList.remove('hidden');
     centerDiv.innerHTML = `
       <span class="chart-center-value">${formatMoney(total)}</span>
-      <span style="font-size:var(--font-sm);">${chartType === 'receita' ? 'Receitas' : 'Despesas'}</span>`;
+      <span class="chart-center-label">${chartType === 'receita' ? 'Receitas' : 'Despesas'}</span>
+      <span class="chart-center-label">${mesesNomes[mes].substring(0,3)} ${ano}</span>`;
   }
+}
+
+/**
+ * Oculta/exibe uma fatia do doughnut ao clicar na legenda HTML.
+ * @param {number} index
+ */
+function _toggleDonutSlice(index) {
+  if (!chart) return;
+  const meta = chart.getDatasetMeta(0);
+  const item = meta.data[index];
+  item.hidden = !item.hidden;
+  const itens = document.querySelectorAll('.donut-leg-item');
+  if (itens[index]) itens[index].style.opacity = item.hidden ? '0.4' : '1';
+  chart.update();
 }
 
 /**
@@ -346,10 +818,8 @@ function atualizarGrafico() {
  */
 function toggleChart(tipo) {
   chartType = tipo;
-  const btnDespesas = document.getElementById('btn-despesas');
-  const btnReceitas = document.getElementById('btn-receitas');
-  if (btnDespesas) btnDespesas.classList.toggle('active', tipo === 'despesa');
-  if (btnReceitas) btnReceitas.classList.toggle('active', tipo === 'receita');
+  document.getElementById('btn-despesas')?.classList.toggle('active', tipo === 'despesa');
+  document.getElementById('btn-receitas')?.classList.toggle('active', tipo === 'receita');
   atualizarGrafico();
 }
 
@@ -522,7 +992,6 @@ function renderHistorico() {
     return;
   }
 
-  // ✅ Usa insertAdjacentHTML para evitar múltiplos reflows no loop
   container.innerHTML = '<div class="transacoes-container"></div>';
   const cd = container.querySelector('.transacoes-container');
   let ultimaData = '';
@@ -531,10 +1000,10 @@ function renderHistorico() {
     const dataObj = parseLocalDate(t.data);
     const dataLabel = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
+      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
       ultimaData = dataLabel;
     }
-    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t));
+    if (cd) cd.innerHTML += _renderCardTransacao(t);
   }
 }
 
@@ -607,19 +1076,17 @@ function _renderListaExtrato(filtrados) {
     return;
   }
 
-  // ✅ insertAdjacentHTML evita reflows múltiplos em loops longos
   container.innerHTML = '<div class="transacoes-container"></div>';
   const cd = container.querySelector('.transacoes-container');
   let ultimaData = '';
 
   for (const t of filtrados) {
-    // ✅ parseLocalDate evita o deslocamento de fuso UTC ao usar YYYY-MM-DD
-    const dataLabel = parseLocalDate(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    const dataLabel = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
+      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
       ultimaData = dataLabel;
     }
-    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t, true));
+    if (cd) cd.innerHTML += _renderCardTransacao(t, true);
   }
 }
 

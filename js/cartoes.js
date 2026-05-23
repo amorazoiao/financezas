@@ -220,8 +220,7 @@ function renderOperacoesFatura() {
   let ultimaData = '';
 
   for (const parcela of fatura.parcelas) {
-    // ✅ parseLocalDate evita deslocamento de fuso ao interpretar YYYY-MM-DD
-    const dataLabel = parseLocalDate(parcela.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
+    const dataLabel = new Date(parcela.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', weekday: 'short' });
     if (dataLabel !== ultimaData) {
       html += `<div class="operacao-section-header">${dataLabel}</div>`;
       ultimaData = dataLabel;
@@ -310,6 +309,9 @@ function prepararPagamentoFaturaAtual() {
 
   const modal = document.getElementById('modal-pagamento');
   if (modal) modal.style.display = 'flex';
+
+  // Sincroniza _digits com o valor pré-preenchido para evitar bug de valor anterior
+  setTimeout(() => setupMoneyInputs(), 50);
 }
 
 /**
@@ -568,6 +570,8 @@ function abrirModalCompra() {
 
   setTimeout(() => {
     if (valorInput && !valorInput.value) valorInput.value = '0,00';
+    // Sincroniza _digits para evitar bug de valor anterior
+    setupMoneyInputs();
   }, 50);
 }
 

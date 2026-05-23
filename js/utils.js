@@ -199,12 +199,16 @@ function showToast(mensagem, erro = false) {
  */
 function setupMoneyInputs() {
   document.querySelectorAll('.money-input').forEach(input => {
-    if (input.dataset.moneyInit) return;
-    input.dataset.moneyInit = '1';
-
+    // ── Reset de valor: sempre que setupMoneyInputs é chamado ──────────────
+    // Lê o value atual do DOM (geralmente '0,00' após abrir o modal)
+    // e sincroniza _digits com ele, limpando qualquer valor anterior.
     const rawValue = input.value.replace(/\D/g, '') || '0';
     input._digits = rawValue;
     input.value = formatBRL(rawValue);
+
+    // ── Setup de listeners: apenas uma vez por elemento ────────────────────
+    if (input.dataset.moneyInit) return;
+    input.dataset.moneyInit = '1';
 
     function cursorFinal() {
       setTimeout(() => {
@@ -271,29 +275,10 @@ function setupMoneyInputs() {
 }
 
 /**
- * Fecha um modal pelo seu ID, restaura o foco ao elemento anterior
- * e remove aria-hidden do container principal.
+ * Fecha um modal pelo seu ID.
  * @param {string} id
  */
 function fecharModal(id) {
   const el = document.getElementById(id);
-  if (!el) return;
-  el.style.display = 'none';
-
-  // Remove aria-hidden do app quando todos os modais estão fechados
-  const algumAberto = ['modal-transacao','modal-cartao','modal-compra','modal-config',
-    'modal-meta','modal-pagamento','modal-orcamento']
-    .some(mid => {
-      const m = document.getElementById(mid);
-      return m && m.style.display !== 'none';
-    });
-  if (!algumAberto) {
-    document.getElementById('appContainer')?.removeAttribute('aria-hidden');
-  }
-
-  // Restaura o foco ao elemento que estava ativo antes do modal abrir
-  if (el._focoAnterior && typeof el._focoAnterior.focus === 'function') {
-    el._focoAnterior.focus();
-    el._focoAnterior = null;
-  }
+  if (el) el.style.display = 'none';
 }

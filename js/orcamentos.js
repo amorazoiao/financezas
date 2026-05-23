@@ -111,6 +111,7 @@ function abrirModalOrcamento() {
   setTimeout(() => {
     const li = document.getElementById('orcamento-limite');
     if (li && !li.value) li.value = '0,00';
+    setupMoneyInputs();
   }, 50);
 }
 
@@ -157,6 +158,9 @@ function editarOrcamento(id) {
   document.getElementById('orcamento-limite').value    = formatBRL(o.limite.toString());
   document.getElementById('orcamento-editar-id').value = o.id;
   document.getElementById('modal-orcamento').style.display = 'flex';
+
+  // Sincroniza _digits para evitar bug de valor anterior
+  setTimeout(() => setupMoneyInputs(), 50);
 }
 
 /**

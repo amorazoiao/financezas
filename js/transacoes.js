@@ -230,6 +230,9 @@ function abrirModalMeta() {
 
   const modal = document.getElementById('modal-meta');
   if (modal) modal.style.display = 'flex';
+
+  // Sincroniza _digits para evitar bug de valor anterior
+  setTimeout(() => setupMoneyInputs(), 50);
 }
 
 /**
