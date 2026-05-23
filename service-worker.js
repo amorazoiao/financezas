@@ -6,7 +6,7 @@
 //     Formato sugerido: 'vANO.MES.DIA' ou simplesmente v1, v2, v3...
 // =============================================================================
 
-const CACHE_VERSION = 'v8.5.1'; // 👈 altere aqui a cada deploy
+const CACHE_VERSION = 'v8.5.2'; // 👈 altere aqui a cada deploy
 const CACHE_NAME    = `financezas-${CACHE_VERSION}`;
 
 // Todos os arquivos do app que devem ser cacheados para funcionar offline
