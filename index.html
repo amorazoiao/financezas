@@ -149,30 +149,46 @@
   </div>
 
   <!-- TELA: EXTRATO -->
+  <!-- TELA: EXTRATO -->
   <div class="screen" id="screen-extrato">
-    <div style="background:white; border-radius:var(--radius-xl); padding:var(--padding-lg); box-shadow:var(--shadow-md);">
-      <div class="extrato-nav-card">
-        <div class="extrato-mes-atual-card">
-          <div class="extrato-mes-atual-label">MÊS SELECIONADO</div>
-          <div class="extrato-mes-atual-valor" id="current-month-display">Maio 2026</div>
+
+    <!-- Cabeçalho de navegação de mês -->
+    <div class="ext-header">
+      <div class="ext-nav">
+        <button class="db-nav-btn" onclick="navegarMes(-1)" aria-label="Mês anterior">‹</button>
+        <div class="ext-mes-info">
+          <div class="ext-mes-nome" id="current-month-display">Maio 2026</div>
+          <button class="ext-btn-hoje" onclick="setMesAtual()">hoje</button>
         </div>
-        <div class="extrato-nav-buttons">
-          <button class="extrato-nav-arrow" onclick="navegarMes(-1)"><span>◀</span> Anterior</button>
-          <button class="extrato-btn-mes-atual" onclick="setMesAtual()">📅 Mês atual</button>
-          <button class="extrato-nav-arrow" onclick="navegarMes(1)">Próximo <span>▶</span></button>
-        </div>
-      </div>
-      <div id="extrato-resumo"></div>
-      <div class="section-header">
-        <div class="section-title">📋 Lançamentos do Mês</div>
-        <div class="section-link" onclick="exportExtrato()">📊 Exportar Excel</div>
-      </div>
-      <div id="extrato-list"></div>
-      <div style="display:flex; gap:var(--gap-md); margin-top:var(--margin-xl); flex-wrap:wrap;">
-        <button class="btn btn-outline"  onclick="exportExtrato()" style="flex:1;">📊 Exportar Excel</button>
-        <button class="pdf-export-btn"   onclick="exportPDF()"     style="flex:1;">📄 Exportar PDF</button>
+        <button class="db-nav-btn" onclick="navegarMes(1)" aria-label="Próximo mês">›</button>
       </div>
     </div>
+
+    <!-- Cards de resumo -->
+    <div id="extrato-resumo"></div>
+
+    <!-- Barra de filtros -->
+    <div class="ext-filters">
+      <select id="extrato-filter-type" class="ext-select" onchange="aplicarFiltroExtrato()">
+        <option value="all">Todos</option>
+        <option value="receita">💰 Receitas</option>
+        <option value="despesa">💸 Despesas</option>
+        <option value="compra_parcelada">💳 Cartão</option>
+      </select>
+      <select id="extrato-filter-cat" class="ext-select" onchange="aplicarFiltroExtrato()">
+        <option value="all">📁 Categorias</option>
+      </select>
+      <button class="ext-btn-export" onclick="exportExtrato()" aria-label="Exportar Excel">
+        <span>⬇</span> Excel
+      </button>
+    </div>
+
+    <!-- Lista de lançamentos -->
+    <div id="extrato-list"></div>
+
+    <!-- Botão PDF no rodapé -->
+    <button class="ext-btn-pdf" onclick="exportPDF()">📄 Exportar PDF do mês</button>
+
   </div>
 
   <!-- TELA: CARTÕES -->
@@ -196,14 +212,28 @@
 
   <!-- TELA: ORÇAMENTO -->
   <div class="screen" id="screen-orcamento">
-    <div class="orcamento-card">
-      <div class="orcamento-header">
-        <h3>🎯 Orçamento por Categoria</h3>
-        <select id="orcamento-mes-select" class="orcamento-select" onchange="carregarOrcamentos()"></select>
+
+    <!-- Cabeçalho -->
+    <div class="orc-header">
+      <div class="orc-header-top">
+        <div>
+          <div class="orc-title">Orçamentos</div>
+          <div class="orc-subtitle">Controle seus limites por categoria</div>
+        </div>
+        <select id="orcamento-mes-select" class="orc-mes-select" onchange="carregarOrcamentos()"></select>
       </div>
-      <div id="orcamentos-list"></div>
-      <button class="btn-add-orcamento" onclick="abrirModalOrcamento()">+ Adicionar orçamento para categoria</button>
+      <!-- Cards de resumo do orçamento -->
+      <div class="orc-resumo" id="orc-resumo"></div>
     </div>
+
+    <!-- Lista de orçamentos -->
+    <div id="orcamentos-list"></div>
+
+    <!-- Botão adicionar -->
+    <button class="orc-btn-add" onclick="abrirModalOrcamento()">
+      <span>＋</span> Adicionar orçamento
+    </button>
+
   </div>
 
   <!-- TELA: RECORRENTES -->
