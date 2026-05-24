@@ -28,61 +28,108 @@ function carregarOrcamentos() {
  * Renderiza a lista de orçamentos do mês selecionado no select,
  * com barra de progresso e alertas de estouro.
  */
+/**
+ * Renderiza a lista de orçamentos e o resumo no header.
+ */
 function renderOrcamentos() {
   const select = document.getElementById('orcamento-mes-select');
   const [mes, ano] = select.value.split('-').map(Number);
   const hoje = new Date();
   const isMesAtual = (mes === hoje.getMonth() && ano === hoje.getFullYear());
 
-  const gastosReais = _calcularGastosOrcamento(mes, ano);
+  const gastosReais   = _calcularGastosOrcamento(mes, ano);
   const orcsFiltrados = orcamentos.filter(o => o.mes === mes && o.ano === ano);
-  const container = document.getElementById('orcamentos-list');
+  const container     = document.getElementById('orcamentos-list');
 
+  // ── Resumo no header ────────────────────────────────────────────
+  const totalLimite  = orcsFiltrados.reduce((s, o) => s + o.limite, 0);
+  const totalGasto   = orcsFiltrados.reduce((s, o) => s + (gastosReais[o.categoria] || 0), 0);
+  const estourados   = orcsFiltrados.filter(o => (gastosReais[o.categoria] || 0) >= o.limite).length;
+  const orcResumo    = document.getElementById('orc-resumo');
+  if (orcResumo) {
+    const pctTotal = totalLimite > 0 ? (totalGasto / totalLimite * 100) : 0;
+    orcResumo.innerHTML = `
+      <div class="orc-resumo-card">
+        <div class="orc-resumo-label">Gasto</div>
+        <div class="orc-resumo-valor ${pctTotal >= 90 ? 'alerta' : 'ok'}">${formatMoney(totalGasto)}</div>
+      </div>
+      <div class="orc-resumo-card">
+        <div class="orc-resumo-label">Limite total</div>
+        <div class="orc-resumo-valor">${formatMoney(totalLimite)}</div>
+      </div>
+      <div class="orc-resumo-card">
+        <div class="orc-resumo-label">Estourados</div>
+        <div class="orc-resumo-valor ${estourados > 0 ? 'alerta' : 'ok'}">${estourados} / ${orcsFiltrados.length}</div>
+      </div>`;
+  }
+
+  // ── Lista vazia ─────────────────────────────────────────────────
   if (orcsFiltrados.length === 0) {
     container.innerHTML = `
       <div class="empty-state-modern">
         <div class="icon">🎯</div>
         <div class="title">Nenhum orçamento definido</div>
+        <div class="subtitle">Defina limites por categoria para controlar seus gastos</div>
       </div>`;
     return;
   }
 
+  // ── Cards de orçamento ──────────────────────────────────────────
   container.innerHTML = '';
 
-  for (const o of orcsFiltrados) {
-    const gasto      = gastosReais[o.categoria] || 0;
-    const percentual = (gasto / o.limite) * 100;
+  // Ordena: estourados primeiro, depois por % utilizado
+  const ordenados = [...orcsFiltrados].sort((a, b) => {
+    const pa = (gastosReais[a.categoria] || 0) / a.limite;
+    const pb = (gastosReais[b.categoria] || 0) / b.limite;
+    return pb - pa;
+  });
 
-    let statusClass = 'safe';
-    if (percentual >= 100)     statusClass = 'danger';
-    else if (percentual >= 80) statusClass = 'warning';
+  for (const o of ordenados) {
+    const gasto   = gastosReais[o.categoria] || 0;
+    const pct     = Math.min((gasto / o.limite) * 100, 100);
+    const restante = o.limite - gasto;
 
-    const alertaHTML = isMesAtual && percentual >= 80
-      ? `<div style="margin-top:var(--margin-sm); font-size:var(--font-sm); color:${percentual >= 100 ? 'var(--danger)' : 'var(--warning)'};">
-           ⚠️ ${percentual >= 100 ? 'Limite estourado!' : `Atenção: restam ${formatMoney(o.limite - gasto)}`}
-         </div>`
-      : '';
+    let status = 'safe';
+    if (pct >= 100)     status = 'danger';
+    else if (pct >= 80) status = 'warning';
 
-    container.innerHTML += `
-      <div class="orcamento-item">
-        <div class="orcamento-info">
-          <span><strong>${escapeHtml(o.categoria)}</strong></span>
-          <span>${formatMoney(gasto)} / ${formatMoney(o.limite)}</span>
-        </div>
-        <div class="orcamento-bar-bg">
-          <div class="orcamento-bar-fill ${statusClass}" style="width:${Math.min(percentual, 100)}%;"></div>
-        </div>
-        <div style="display:flex; justify-content:space-between; margin-top:var(--margin-xs);">
-          <span style="font-size:var(--font-sm);">${percentual.toFixed(1)}% utilizado</span>
-          <div>
-            <button onclick="editarOrcamento('${o.id}')" style="background:none; border:none; cursor:pointer;">✏️</button>
-            <button onclick="excluirOrcamento('${o.id}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">🗑️</button>
+    const cor = getCategoriaColor(o.categoria);
+
+    let alertaHTML = '';
+    if (isMesAtual && pct >= 100) {
+      alertaHTML = `<div class="orc-item-alerta danger">🔴 Limite estourado em ${formatMoney(Math.abs(restante))}</div>`;
+    } else if (isMesAtual && pct >= 80) {
+      alertaHTML = `<div class="orc-item-alerta warning">⚠️ Restam ${formatMoney(restante)} (${(100-pct).toFixed(0)}%)</div>`;
+    }
+
+    container.insertAdjacentHTML('beforeend', `
+      <div class="orc-item">
+        <div class="orc-item-header">
+          <div class="orc-item-cat">
+            <div class="orc-item-dot" style="background:${cor};"></div>
+            <div class="orc-item-nome">${escapeHtml(o.categoria)}</div>
+          </div>
+          <div class="orc-item-acoes">
+            <button class="orc-item-btn" onclick="editarOrcamento('${o.id}')" aria-label="Editar">✏️</button>
+            <button class="orc-item-btn" onclick="excluirOrcamento('${o.id}')" aria-label="Excluir">🗑️</button>
           </div>
         </div>
+        <div class="orc-item-valores">
+          <span class="orc-item-gasto">${formatMoney(gasto)}</span>
+          <span class="orc-item-limite">de ${formatMoney(o.limite)}</span>
+        </div>
+        <div class="orc-barra-bg">
+          <div class="orc-barra-fill ${status}" style="width:${pct}%;"></div>
+        </div>
+        <div class="orc-item-footer">
+          <span class="orc-item-pct ${status}">${pct.toFixed(1)}% utilizado</span>
+          ${restante > 0 ? `<span class="orc-item-restante">sobram ${formatMoney(restante)}</span>` : ''}
+        </div>
         ${alertaHTML}
-      </div>`;
+      </div>`);
   }
 }
+
 
 /**
  * Abre o modal de criação de orçamento para categorias ainda sem orçamento no mês.
@@ -155,7 +202,7 @@ function editarOrcamento(id) {
   const catSelect = document.getElementById('orcamento-categoria');
   catSelect.innerHTML = `<option value="${o.categoria}">${o.categoria}</option>`;
 
-  document.getElementById('orcamento-limite').value    = formatBRL(o.limite.toString());
+  document.getElementById('orcamento-limite').value    = formatBRL(valorParaInput(o.limite));
   document.getElementById('orcamento-editar-id').value = o.id;
   document.getElementById('modal-orcamento').style.display = 'flex';
 

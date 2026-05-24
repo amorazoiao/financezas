@@ -74,7 +74,10 @@ function salvarTudo() {
     orcamentos,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
-  console.log('[FinanÇezas] Dados salvos com sucesso');
+  // Invalida o cache sempre que os dados mudam
+  _cacheTodosLancamentos = null;
+  _cacheTimestamp = null;
+  console.log('[FinanÇezas] Dados salvos e cache invalidado');
 }
 
 /**
@@ -315,7 +318,8 @@ function obterTodosLancamentosParaUI(forceRefresh = false) {
       if (!isNaN(dataVencimento.getTime())) {
         todos.push({
           id: `${compra.id}_parcela_${i + 1}`,
-          data: formatarDataLocal(dataVencimento),
+          data: formatarDataLocal(dataVencimento), // data de vencimento — usada para filtro mensal
+          dataCompra: compra.dataCompra,           // data real do gasto — usada para ordenação no histórico
           descricao: compra.descricao,
           categoria: compra.categoria,
           valor: -compra.valorParcela,

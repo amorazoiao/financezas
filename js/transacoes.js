@@ -133,7 +133,7 @@ function editarTransacao(id) {
   if (idInput) idInput.value = transacao.id;
   if (dataInput) dataInput.value = transacao.data;
   if (descInput) descInput.value = transacao.descricao;
-  if (valorInput) valorInput.value = formatBRL(Math.abs(transacao.valor).toString());
+  if (valorInput) valorInput.value = formatBRL(valorParaInput(Math.abs(transacao.valor)));
 
   if (catSelect) {
     catSelect.innerHTML = '';

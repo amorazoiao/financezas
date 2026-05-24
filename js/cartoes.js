@@ -305,7 +305,7 @@ function prepararPagamentoFaturaAtual() {
   }
 
   const valorInput = document.getElementById('pagamento-valor');
-  if (valorInput) valorInput.value = formatBRL(fatura.valorRestante.toString());
+  if (valorInput) valorInput.value = formatBRL(valorParaInput(fatura.valorRestante));
 
   const modal = document.getElementById('modal-pagamento');
   if (modal) modal.style.display = 'flex';
@@ -486,7 +486,7 @@ function editarCartao(cartaoId) {
 
   if (idInput) idInput.value = cartao.id;
   if (nomeInput) nomeInput.value = cartao.nome;
-  if (limiteInput) limiteInput.value = formatBRL(cartao.limite.toString());
+  if (limiteInput) limiteInput.value = formatBRL(valorParaInput(cartao.limite));
   if (fechamentoInput) fechamentoInput.value = cartao.fechamento;
   if (vencimentoInput) vencimentoInput.value = cartao.vencimento;
 

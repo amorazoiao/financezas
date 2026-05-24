@@ -121,6 +121,17 @@ function formatBRL(v) {
 }
 
 /**
+ * Converte um número float (reais) para o formato que o input monetário espera.
+ * Exemplo: 3700.00 → "370000" → formatBRL → "3.700,00"
+ * Usar sempre que preencher um .money-input com um valor existente.
+ * @param {number} valor — valor em reais (ex: 3700.50)
+ * @returns {string} string de centavos para passar ao formatBRL
+ */
+function valorParaInput(valor) {
+  return String(Math.round(Math.abs(valor) * 100));
+}
+
+/**
  * Converte string no formato BRL ("1.234,56") para number (1234.56).
  * Suporta tanto formato brasileiro quanto americano como fallback.
  * @param {string} v

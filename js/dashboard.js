@@ -969,7 +969,7 @@ function renderSmartAlerts() {
  */
 function renderHistorico() {
   const tipoFiltro = document.getElementById('filter-type')?.value || 'all';
-  const catFiltro = document.getElementById('filter-cat')?.value || 'all';
+  const catFiltro  = document.getElementById('filter-cat')?.value  || 'all';
 
   let itens = obterTodosLancamentosParaUI();
 
@@ -977,10 +977,12 @@ function renderHistorico() {
   else if (tipoFiltro === 'despesa') itens = itens.filter(i => i.valor < 0);
   if (catFiltro !== 'all') itens = itens.filter(i => i.categoria === catFiltro);
 
-  // 🔥 CORREÇÃO: Ordena usando parseLocalDate
+  // Ordena pela data real do gasto:
+  // parcelas de cartão usam dataCompra (quando a compra foi feita),
+  // demais lançamentos usam data normalmente.
   itens.sort((a, b) => {
-    const da = parseLocalDate(a.data);
-    const db = parseLocalDate(b.data);
+    const da = parseLocalDate(a.dataCompra || a.data);
+    const db = parseLocalDate(b.dataCompra || b.data);
     return db - da;
   });
 
@@ -997,13 +999,14 @@ function renderHistorico() {
   let ultimaData = '';
 
   for (const t of itens.slice(0, 10)) {
-    const dataObj = parseLocalDate(t.data);
-    const dataLabel = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    // Exibe a data real do gasto (dataCompra para parcelas, data para os demais)
+    const dataExibir = t.dataCompra || t.data;
+    const dataLabel  = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
+      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
-    if (cd) cd.innerHTML += _renderCardTransacao(t);
+    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t));
   }
 }
 
@@ -1017,14 +1020,20 @@ function carregarExtratoComFiltro(mes, ano) {
   const todos = obterTodosLancamentosParaUI();
   const filtrados = todos
     .filter(t => {
-      const d = parseLocalDate(t.data); // 🔥 USAR parseLocalDate
+      // Filtra pelo mês de vencimento (determina em qual mês a parcela aparece no extrato)
+      const d = parseLocalDate(t.data);
       return d.getMonth() === mes && d.getFullYear() === ano;
     })
     .sort((a, b) => {
-      const da = parseLocalDate(a.data);
-      const db = parseLocalDate(b.data);
-      return db - da; // ordena do mais recente para o mais antigo
+      // Ordena pela data real do gasto (dataCompra para parcelas, data para demais)
+      const da = parseLocalDate(a.dataCompra || a.data);
+      const db = parseLocalDate(b.dataCompra || b.data);
+      return db - da;
     });
+
+  _extratoCache = filtrados;
+  const selTipo = document.getElementById('extrato-filter-type');
+  if (selTipo) selTipo.value = 'all';
 
   _renderResumoExtrato(filtrados, mes, ano);
   _renderListaExtrato(filtrados);
@@ -1038,28 +1047,38 @@ function carregarExtratoComFiltro(mes, ano) {
  * @private
  */
 function _renderResumoExtrato(filtrados, mes, ano) {
-  const receitas = filtrados.filter(t => t.valor > 0 && t.tipo !== 'pagamento_fatura').reduce((s, t) => s + t.valor, 0);
+  const receitas       = filtrados.filter(t => t.valor > 0 && t.tipo !== 'pagamento_fatura').reduce((s, t) => s + t.valor, 0);
   const despesasAvista = filtrados.filter(t => t.valor < 0 && t.tipo !== 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const comprasCartao = filtrados.filter(t => t.tipo === 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const pagamentos = filtrados.filter(t => t.tipo === 'pagamento_fatura').reduce((s, t) => s + Math.abs(t.valor), 0);
-  const gastoTotal = despesasAvista + comprasCartao;
-  const saldoConta = receitas - despesasAvista - pagamentos;
-  const economia = receitas - gastoTotal;
+  const comprasCartao  = filtrados.filter(t => t.tipo === 'compra_parcelada').reduce((s, t) => s + Math.abs(t.valor), 0);
+  const pagamentos     = filtrados.filter(t => t.tipo === 'pagamento_fatura').reduce((s, t) => s + Math.abs(t.valor), 0);
+  const gastoTotal     = despesasAvista + comprasCartao;
+  const economia       = receitas - gastoTotal;
 
   const extratoResumo = document.getElementById('extrato-resumo');
   if (!extratoResumo) return;
 
-  extratoResumo.innerHTML = `
-    <div class="extrato-resumo">
-      <div class="resumo-card receita"><div class="emoji">💰</div><div class="label">RECEITAS</div><div class="value">${formatMoney(receitas)}</div></div>
-      <div class="resumo-card despesa"><div class="emoji">💸</div><div class="label">À VISTA</div><div class="value">${formatMoney(despesasAvista)}</div></div>
-      <div class="resumo-card cartao"><div class="emoji">💳</div><div class="label">CARTÕES</div><div class="value">${formatMoney(comprasCartao)}</div></div>
-      <div class="resumo-card"><div class="emoji">📉</div><div class="label">GASTO TOTAL</div><div class="value">${formatMoney(gastoTotal)}</div></div>
-      <div class="resumo-card"><div class="emoji">🏦</div><div class="label">SALDO CONTA</div><div class="value" style="color:${saldoConta < 0 ? 'var(--danger)' : 'var(--primary)'}">${formatMoney(saldoConta)}</div></div>
-      <div class="resumo-card"><div class="emoji">📈</div><div class="label">ECONOMIA</div><div class="value" style="color:${economia >= 0 ? 'var(--success)' : 'var(--danger)'}">
-        ${economia >= 0 ? formatMoney(economia) : '▼ ' + formatMoney(Math.abs(economia))}
-      </div></div>
+  const card = (label, valor, cls) => `
+    <div class="ext-resumo-card">
+      <div class="ext-resumo-label">${label}</div>
+      <div class="ext-resumo-valor ${cls}">${formatMoney(valor)}</div>
     </div>`;
+
+  extratoResumo.innerHTML = `<div class="ext-resumo-grid">
+    ${card('Receitas',    receitas,       'positivo')}
+    ${card('À vista',     despesasAvista, 'negativo')}
+    ${card('Cartão',      comprasCartao,  'neutro')}
+    ${card('Gasto total', gastoTotal,     'negativo')}
+    ${card('Pagamentos',  pagamentos,     'neutro')}
+    ${card('Economia',    Math.abs(economia), economia >= 0 ? 'positivo' : 'negativo')}
+  </div>`;
+
+  // Popula select de categorias do filtro
+  const catSelect = document.getElementById('extrato-filter-cat');
+  if (catSelect) {
+    const cats = [...new Set(filtrados.map(t => t.categoria).filter(Boolean))].sort();
+    catSelect.innerHTML = '<option value="all">📁 Categorias</option>' +
+      cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
 }
 
 /**
@@ -1067,12 +1086,32 @@ function _renderResumoExtrato(filtrados, mes, ano) {
  * @param {Array} filtrados - Lista de lançamentos filtrados.
  * @private
  */
+// Cache dos lançamentos do mês para aplicar filtros sem re-buscar
+let _extratoCache = [];
+
+/**
+ * Aplica filtros de tipo e categoria sobre o cache do mês atual.
+ */
+function aplicarFiltroExtrato() {
+  const tipo = document.getElementById('extrato-filter-type')?.value || 'all';
+  const cat  = document.getElementById('extrato-filter-cat')?.value  || 'all';
+
+  const filtrados = _extratoCache.filter(t => {
+    const passaTipo = tipo === 'all' || t.tipo === tipo ||
+      (tipo === 'despesa' && t.tipo === 'despesa_avista') ||
+      (tipo === 'receita' && t.valor > 0 && t.tipo !== 'pagamento_fatura');
+    const passaCat  = cat  === 'all' || t.categoria === cat;
+    return passaTipo && passaCat;
+  });
+  _renderListaExtrato(filtrados);
+}
+
 function _renderListaExtrato(filtrados) {
   const container = document.getElementById('extrato-list');
   if (!container) return;
 
   if (filtrados.length === 0) {
-    container.innerHTML = '<div class="empty-state-modern">📭 Nenhuma movimentação</div>';
+    container.innerHTML = '<div class="empty-state-modern">📭 Nenhuma movimentação neste período</div>';
     return;
   }
 
@@ -1081,12 +1120,14 @@ function _renderListaExtrato(filtrados) {
   let ultimaData = '';
 
   for (const t of filtrados) {
-    const dataLabel = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    // Para parcelas de cartão, agrupa pela data real da compra (não vencimento)
+    const dataExibir = t.dataCompra || t.data;
+    const dataLabel  = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     if (dataLabel !== ultimaData && cd) {
-      cd.innerHTML += `<div class="grupo-dia">📅 ${dataLabel}</div>`;
+      cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
-    if (cd) cd.innerHTML += _renderCardTransacao(t, true);
+    if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t, true));
   }
 }
 
@@ -1101,9 +1142,9 @@ function _renderListaExtrato(filtrados) {
  function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
   let classe = '', icone = '', tipoLabel = '', badges = '', botoes = '';
   
-  // 🔥 CORREÇÃO: Formata a data usando parseLocalDate
-  const dataObj = parseLocalDate(t.data);
-  const dataFormatada = dataObj.toLocaleDateString('pt-BR', { 
+  // Para parcelas de cartão: exibe data da compra, não do vencimento
+  const dataExibir   = t.dataCompra || t.data;
+  const dataFormatada = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { 
     day: '2-digit', 
     month: 'short',
     timeZone: 'America/Sao_Paulo'
@@ -1125,6 +1166,8 @@ function _renderListaExtrato(filtrados) {
     </div>`;
   } else if (t.tipo === 'compra_parcelada') {
     const cartaoNome = cartoes.find(c => c.id === t.cartaoId)?.nome || 'Cartão';
+    // Vencimento como info secundária
+    const vencLabel  = parseLocalDate(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     classe = 'cartao';
     icone = '💳';
     tipoLabel = `Compra ${t.parcelas}x`;
@@ -1133,7 +1176,8 @@ function _renderListaExtrato(filtrados) {
       <span class="parcela-badge">💰 ${formatMoney(t.valorParcela)}/mês</span>
       <span class="status-badge ${t.parcelasPagas === t.parcelas ? 'pago' : 'pendente'}">
         💳 ${escapeHtml(cartaoNome)} • ${t.parcelasPagas}/${t.parcelas}
-      </span>`;
+      </span>
+      <span class="venc-badge">vence ${vencLabel}</span>`;
     botoes = `<div class="transacao-actions">
       <button class="btn-delete" onclick="excluirCompra('${t.compraId}')" title="Excluir compra">🗑️</button>
     </div>`;
