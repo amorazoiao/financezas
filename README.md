@@ -1,4 +1,4 @@
-# FinanÇezas v8.5 — Estrutura Multi-arquivo
+# FinanÇezas v8.6 — Estrutura Multi-arquivo
 
 ## Estrutura de pastas
 

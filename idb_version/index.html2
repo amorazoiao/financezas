@@ -423,6 +423,7 @@
     <span class="nav-label">Mais</span>
   </button>
 </div>
+</div>
 
 <!-- ============================================================ -->
 <!-- BOTTOM SHEETS                                                 -->
@@ -464,7 +465,6 @@
       <div class="sheet-option" onclick="goToScreen('orcamento');closeSheet('moreSheet')"><span class="icon">🎯</span><div class="title">Orçamento</div><div class="sub">Controle de gastos</div></div>
       <div class="sheet-option" onclick="goToScreen('recorrentes');closeSheet('moreSheet')"><span class="icon">🔄</span><div class="title">Recorrentes</div><div class="sub">Assinaturas e receitas fixas</div></div>
       <div class="sheet-option" onclick="goToScreen('reserva');closeSheet('moreSheet')"><span class="icon">🛡️</span><div class="title">Reserva</div><div class="sub">Metas e emergência</div></div>
-      <div class="sheet-option" onclick="closeSheet('moreSheet'); abrirModalSeguranca()"><span class="icon">🔒</span><div class="title">Segurança</div><div class="sub">PIN, bloqueio e privacidade</div></div>
       <div class="sheet-option" onclick="openSettings();closeSheet('moreSheet')"><span class="icon">⚙️</span><div class="title">Configurações</div><div class="sub">Categorias, backup, tema</div></div>
     </div>
     <div style="margin-top:20px; text-align:center;">
@@ -763,74 +763,6 @@
   </div>
 </div>
 
-<!-- Modal: Segurança -->
-<div id="modal-seguranca" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>🔒 Segurança</h3>
-      <button class="modal-close" onclick="fecharModal('modal-seguranca')">&times;</button>
-    </div>
-    <div class="modal-body">
-      <!-- Status do PIN -->
-      <div class="security-section">
-        <div class="security-header">
-          <span class="security-icon">🔐</span>
-          <span class="security-title">PIN de Acesso</span>
-        </div>
-        <p class="security-desc">Proteja o app com um PIN de 4 dígitos</p>
-        <div class="security-buttons">
-          <button class="btn btn-primary" id="btn-config-pin" onclick="configurarPin()">
-            <span id="pin-status-text">Configurar PIN</span>
-          </button>
-          <button class="btn btn-outline btn-danger" id="btn-remove-pin" onclick="removerPin()" style="display:none;">
-            Remover PIN
-          </button>
-        </div>
-      </div>
-
-      <!-- Bloqueio automático -->
-      <div class="security-section">
-        <div class="security-header">
-          <span class="security-icon">⏰</span>
-          <span class="security-title">Bloqueio Automático</span>
-        </div>
-        <p class="security-desc">Bloqueia o app após período de inatividade</p>
-        <div class="security-option">
-          <label class="toggle-switch">
-            <input type="checkbox" id="auto-lock-toggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label">Bloqueio automático (5 min)</span>
-        </div>
-      </div>
-
-      <!-- Ocultação de saldo -->
-      <div class="security-section">
-        <div class="security-header">
-          <span class="security-icon">👁️</span>
-          <span class="security-title">Privacidade de Valores</span>
-        </div>
-        <p class="security-desc">Ocultar valores monetários na interface</p>
-        <div class="security-option">
-          <label class="toggle-switch">
-            <input type="checkbox" id="hide-balance-toggle" onchange="toggleOcultarSaldo()">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label">Ocultar valores (exibir ••••••)</span>
-        </div>
-      </div>
-
-      <!-- Dica de segurança -->
-      <div class="security-tip">
-        💡 <strong>Dica:</strong> Nunca compartilhe seu PIN com ninguém. Se esquecer o PIN, apenas resetando todos os dados será possível recuperar o acesso.
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="fecharModal('modal-seguranca')">Fechar</button>
-    </div>
-  </div>
-</div>
-
 <!-- Modal: Meta de Reserva -->
 <div id="modal-meta" class="modal-overlay">
   <div class="modal">
@@ -890,7 +822,6 @@
 <script src="js/dialogs.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/security.js"></script>  
 <script src="js/recorrencias.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/cartoes.js"></script>

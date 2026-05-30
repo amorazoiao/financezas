@@ -1,0 +1,246 @@
+/*
+ * investimentos.css — Estilos para a gestão de ativos
+ * Mantendo a consistência com o design system do FinanÇezas
+ */
+
+.inv-header {
+  padding: var(--padding-lg) var(--padding-md);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.inv-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--padding-lg);
+}
+
+.inv-title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inv-subtitle {
+  font-size: var(--font-sm);
+  opacity: 0.7;
+}
+
+.inv-btn-novo {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.inv-btn-novo:active {
+  opacity: 0.8;
+}
+
+.inv-resumo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: var(--padding-lg);
+}
+
+.inv-resumo-item {
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inv-resumo-item.destaque {
+  background: var(--primary-soft);
+  border: 1px solid var(--primary);
+}
+
+.inv-resumo-label {
+  font-size: var(--font-xs);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inv-resumo-valor {
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.inv-resumo-valor.positivo { color: var(--success); }
+.inv-resumo-valor.negativo { color: var(--danger); }
+
+.inv-lista-container {
+  padding: 0 var(--padding-md) var(--padding-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Portfolio Table Style */
+.inv-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr 1.5fr 0.8fr;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.6;
+  color: var(--gray-600);
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark .inv-table-header {
+  color: var(--gray-400);
+}
+
+.inv-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr 1.5fr 0.8fr;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  align-items: center;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.inv-table-row:active {
+  background: var(--bg-secondary);
+  transform: scale(0.98);
+}
+
+.inv-col-nome {
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-asset-nome {
+  font-weight: 600;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+}
+
+.inv-asset-tipo {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.inv-col-qtd, .inv-col-pm, .inv-col-atual, .inv-col-aloc {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-main);
+  text-align: right;
+}
+
+.inv-col-atual {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.inv-valor-atual {
+  font-weight: 700;
+}
+
+.inv-valor-rend {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.inv-valor-rend.positivo { color: var(--success); }
+.inv-valor-rend.negativo { color: var(--danger); }
+
+.inv-row-actions {
+  position: absolute;
+  right: -40px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+@media (max-width: 600px) {
+  .inv-table-header {
+    display: none;
+  }
+  .inv-table-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+  .inv-col-pm, .inv-col-aloc {
+    display: none;
+  }
+  .inv-col-qtd, .inv-col-atual {
+    text-align: left;
+  }
+  .inv-row-actions {
+    position: static;
+    opacity: 1;
+    grid-column: span 2;
+    justify-content: flex-end;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 8px;
+  }
+}
+
+.empty-state-modern {
+  text-align: center;
+  padding: 40px 20px;
+  opacity: 0.6;
+}
+
+.empty-state-modern .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state-modern .title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.empty-state-modern .subtitle {
+  font-size: var(--font-sm);
+}
+
+.inv-btn-action {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.inv-btn-action:active {
+  background: var(--border-color);
+}
+
+.inv-btn-action.danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}

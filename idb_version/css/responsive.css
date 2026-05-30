@@ -1,0 +1,69 @@
+/* ====================================================
+   responsive.css — Media queries globais
+   ==================================================== */
+
+/* Ajustes para telas pequenas */
+@media (max-width: 480px) {
+    .modal {
+        margin: var(--margin-sm);
+        max-height: 92vh;
+    }
+    
+    .form-row {
+        flex-direction: column;
+    }
+    
+    .dados-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .ext-resumo-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .rec-previsao {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .db-stats-grid {
+        gap: var(--gap-sm);
+    }
+    
+    .db-balance-value {
+        font-size: 1.8rem;
+    }
+}
+
+/* Ajustes para tablets */
+@media (min-width: 768px) {
+    .app-container {
+        max-width: 600px;
+    }
+    
+    .db-charts-wrap {
+        flex-direction: row;
+    }
+    
+    .filter-bar {
+        flex-direction: row;
+    }
+}
+
+/* Dark mode suporte para inputs */
+@media (prefers-color-scheme: dark) {
+    body:not(.dark) {
+        /* Mantém o modo claro se o usuário não escolheu dark */
+    }
+}
+
+/* Safe area support */
+@supports (padding: max(0px)) {
+    .app-container {
+        padding-left: max(var(--padding-md), env(safe-area-inset-left));
+        padding-right: max(var(--padding-md), env(safe-area-inset-right));
+    }
+    
+    .bottom-nav {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+}

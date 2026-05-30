@@ -1,0 +1,572 @@
+/* ====================================================
+   base.css — Tokens, reset, tipografia, dark mode
+   VERSÃO PREMIUM BANCÁRIA (layout novo, funcionalidade antiga)
+   ==================================================== */
+
+:root { 
+    /* Paleta original da versão antiga (azul) */
+    --primary: #72ADE7; 
+    --primary-dark: #4A8FD4;
+    --primary-light: #eef2ff;
+    --accent: #C6A15B;
+    --accent-dark: #A07D45;
+    --accent-light: #D4B87A;
+    
+    /* Cores semânticas */
+    --success: #22c55e;
+    --success-light: #dcfce7;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --warning: #f59e0b;
+    --warning-light: #fed7aa;
+    --info: #3b82f6;
+    --info-light: #dbeafe;
+    
+    /* Escala de cinza */
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    /* Backgrounds */
+    --bg: #F9FAFB;
+    --bg-card: #FFFFFF;
+    --bg-surface: #F3F4F6;
+    
+    /* Espaçamentos (novo layout — mais espaçosos) */
+    --space-xs: 6px;
+    --space-sm: 10px;
+    --space-md: 14px;
+    --space-lg: 18px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+    --space-3xl: 40px;
+    --space-4xl: 48px;
+    --space-5xl: 64px;
+    
+    /* Padding/Margin */
+    --padding-xs: var(--space-xs);
+    --padding-sm: var(--space-sm);
+    --padding-md: var(--space-md);
+    --padding-lg: var(--space-lg);
+    --padding-xl: var(--space-xl);
+    --padding-2xl: var(--space-2xl);
+    --margin-xs: var(--space-xs);
+    --margin-sm: var(--space-sm);
+    --margin-md: var(--space-md);
+    --margin-lg: var(--space-lg);
+    --margin-xl: var(--space-xl);
+    --margin-2xl: var(--space-2xl);
+    --gap-xs: var(--space-xs);
+    --gap-sm: var(--space-sm);
+    --gap-md: var(--space-md);
+    --gap-lg: var(--space-lg);
+    --gap-xl: var(--space-xl);
+    
+    /* Bordas (novo layout) */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    --radius-3xl: 28px;
+    --radius-full: 9999px;
+    
+    /* Tipografia (novo layout — ligeiramente maior) */
+    --font-xs: 0.625rem;
+    --font-sm: 0.6875rem;
+    --font-md: 0.75rem;
+    --font-base: 0.8125rem;
+    --font-lg: 0.875rem;
+    --font-xl: 1rem;
+    --font-2xl: 1.125rem;
+    --font-3xl: 1.25rem;
+    --font-4xl: 1.5rem;
+    --font-5xl: 1.875rem;
+    
+    /* Sombras premium */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.05);
+    
+    /* Transições */
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+    
+    /* Z-index */
+    --z-dropdown: 1000;
+    --z-modal: 2000;
+    --z-toast: 3000;
+    --z-tooltip: 4000;
+    
+    /* Opacidade */
+    --opacity-disabled: 0.4;
+    --opacity-hover: 0.8;
+    --opacity-overlay: 0.6;
+}
+
+/* Dark Mode */
+body.dark { 
+    --primary: #72ADE7;
+    --primary-dark: #4A8FD4;
+    --primary-light: #1e3a5f;
+    --bg: #0F172A;
+    --bg-card: #1E293B;
+    --bg-surface: #0F172A;
+    --gray-50: #1E293B;
+    --gray-100: #334155;
+    --gray-200: #475569;
+    --gray-300: #64748B;
+    --gray-400: #94A3B8;
+    --gray-500: #CBD5E1;
+    --gray-600: #E2E8F0;
+    --gray-700: #F1F5F9;
+    --gray-800: #F8FAFC;
+    --gray-900: #FFFFFF;
+}
+
+body.dark .stat-card, 
+body.dark .chart-container, 
+body.dark .modal, 
+body.dark .transacao-card, 
+body.dark .cartao-detail-section, 
+body.dark .extrato-nav-card, 
+body.dark .hero-balance-card, 
+body.dark .smart-alert, 
+body.dark .section-header, 
+body.dark .metric-card, 
+body.dark .orcamento-card, 
+body.dark .assinaturas-card, 
+body.dark .previsao-card, 
+body.dark .meta-item, 
+body.dark .resumo-card,
+body.dark .security-section,
+body.dark .pin-container { 
+    background: #1e293b; 
+    color: white; 
+    border-color: #334155; 
+}
+
+* { 
+    box-sizing: border-box; 
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+    margin: 0; 
+    padding: 0; 
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background: var(--bg);
+    margin: 0;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    transition: background var(--transition-base);
+    overflow-x: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--padding-md);
+    padding-top: max(var(--padding-md), env(safe-area-inset-top, 0px));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 16px));
+    padding-left: max(var(--padding-md), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--padding-md), env(safe-area-inset-right, 0px));
+}
+
+.app-container::-webkit-scrollbar { width: 4px; }
+.app-container::-webkit-scrollbar-track { background: transparent; }
+.app-container::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
+
+/* Ícones */
+.icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.icon-sm { width: 16px; height: 16px; }
+.icon-md { width: 20px; height: 20px; }
+.icon-lg { width: 24px; height: 24px; }
+.icon-xl { width: 32px; height: 32px; }
+
+/* Telas */
+.screen { 
+    display: none;
+}
+.screen.active { 
+    display: block;
+    animation: screenIn 0.22s ease-out;
+}
+@keyframes screenIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Modais */
+.modal-overlay { display: none; }
+.modal-overlay.modal-open {
+    display: flex;
+    animation: overlayIn 0.18s ease-out;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-overlay.modal-open .modal {
+    animation: modalIn 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.94) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Bottom sheets */
+.sheet-overlay { display: none; }
+.sheet-overlay.sheet-open {
+    display: flex;
+    animation: overlayIn 0.18s ease-out;
+}
+.sheet-overlay.sheet-open .sheet-content {
+    animation: sheetUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* Cards de transação — surgimento escalonado */
+.transacao-card { animation: cardIn 0.18s ease-out both; }
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.transacoes-container .transacao-card:nth-child(1)  { animation-delay: 0ms; }
+.transacoes-container .transacao-card:nth-child(2)  { animation-delay: 30ms; }
+.transacoes-container .transacao-card:nth-child(3)  { animation-delay: 60ms; }
+.transacoes-container .transacao-card:nth-child(4)  { animation-delay: 90ms; }
+.transacoes-container .transacao-card:nth-child(5)  { animation-delay: 120ms; }
+.transacoes-container .transacao-card:nth-child(n+6) { animation-delay: 150ms; }
+
+/* Toast elegante */
+.toast {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px) + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    background: #1e293b;
+    backdrop-filter: blur(12px);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 100px;
+    z-index: var(--z-toast);
+    font-size: var(--font-base);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    max-width: 90%;
+    text-align: center;
+    font-weight: 500;
+    white-space: nowrap;
+    animation: toastIn 0.25s cubic-bezier(0.34, 1.4, 0.64, 1),
+               toastOut 0.2s ease-in 2.7s forwards;
+}
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.92); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes toastOut {
+    from { opacity: 1; transform: translateX(-50%) translateY(0); }
+    to   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+}
+
+/* Feedback de toque */
+.btn:active, .nav-item:active, .card:active { transform: scale(0.98); transition: transform 0.05s; }
+
+/* Scrollbar global */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
+
+/* Reduz animação se usuário preferir */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ====================================================
+   security.css — Estilos para segurança do app
+   ==================================================== */
+
+/* Seção de segurança no modal */
+.security-section {
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    padding: var(--padding-lg);
+    margin-bottom: var(--margin-lg);
+}
+
+body.dark .security-section {
+    background: var(--gray-800);
+}
+
+.security-header {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+    margin-bottom: var(--margin-sm);
+}
+
+.security-icon {
+    font-size: var(--font-2xl);
+}
+
+.security-title {
+    font-size: var(--font-lg);
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+body.dark .security-title {
+    color: var(--gray-100);
+}
+
+.security-desc {
+    font-size: var(--font-sm);
+    color: var(--gray-500);
+    margin-bottom: var(--margin-md);
+}
+
+.security-buttons {
+    display: flex;
+    gap: var(--gap-sm);
+    flex-wrap: wrap;
+}
+
+.security-option {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-md);
+    padding: var(--padding-sm) 0;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--gray-300);
+    transition: 0.3s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.toggle-label {
+    font-size: var(--font-base);
+    color: var(--gray-700);
+    cursor: pointer;
+}
+
+body.dark .toggle-label {
+    color: var(--gray-300);
+}
+
+.security-tip {
+    background: var(--info-light);
+    border-radius: var(--radius-lg);
+    padding: var(--padding-md);
+    font-size: var(--font-sm);
+    color: var(--info);
+    margin-top: var(--margin-lg);
+    border-left: 3px solid var(--info);
+}
+
+body.dark .security-tip {
+    background: #1e3a5f;
+}
+
+/* Botão perigo */
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+/* ====================================================
+   PIN Screen Styles
+   ==================================================== */
+
+.pin-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(20px);
+    animation: pinFadeIn 0.3s ease;
+}
+
+@keyframes pinFadeIn {
+    from { opacity: 0; backdrop-filter: blur(0); }
+    to { opacity: 1; backdrop-filter: blur(20px); }
+}
+
+.pin-container {
+    background: var(--bg-card);
+    border-radius: 32px;
+    padding: 32px 24px;
+    width: 320px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--gray-200);
+}
+
+body.dark .pin-container { 
+    border-color: var(--gray-700); 
+}
+
+.pin-icon { 
+    font-size: 48px; 
+    margin-bottom: 16px; 
+}
+
+.pin-titulo { 
+    font-size: var(--font-2xl); 
+    font-weight: 700; 
+    color: var(--gray-800); 
+    margin-bottom: 4px; 
+}
+
+body.dark .pin-titulo { 
+    color: var(--gray-100); 
+}
+
+.pin-subtitulo { 
+    font-size: var(--font-sm); 
+    color: var(--gray-500); 
+    margin-bottom: 24px; 
+}
+
+.pin-display {
+    font-size: 32px;
+    letter-spacing: 12px;
+    margin-bottom: 24px;
+    color: var(--primary);
+    font-family: monospace;
+}
+
+.pin-teclado {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.pin-tecla {
+    background: var(--gray-100);
+    border: none;
+    border-radius: 60px;
+    padding: 16px;
+    font-size: 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    color: var(--gray-800);
+}
+
+body.dark .pin-tecla { 
+    background: var(--gray-700); 
+    color: var(--gray-100); 
+}
+
+.pin-tecla:active { 
+    transform: scale(0.94); 
+    background: var(--primary); 
+    color: white; 
+}
+
+.pin-tecla-limpar, .pin-tecla-fechar {
+    background: var(--gray-200);
+    font-size: 20px;
+}
+
+body.dark .pin-tecla-limpar, 
+body.dark .pin-tecla-fechar {
+    background: var(--gray-600);
+}
+
+.pin-mensagem {
+    font-size: var(--font-sm);
+    color: var(--danger);
+    min-height: 40px;
+    margin-top: 8px;
+}
+
+.pin-esqueci {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    margin-top: 12px;
+    text-decoration: underline;
+}
+
+.pin-esqueci:active {
+    opacity: 0.7;
+}
