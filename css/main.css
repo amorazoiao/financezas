@@ -436,8 +436,10 @@ body.dark .orc-btn-add:hover { background: #312e81; }
 .transacao-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-sm); margin-top: var(--margin-xs); }
 .transacao-categoria { display: inline-block; background: var(--gray-100); padding: 3px var(--padding-md); border-radius: var(--radius-xl); font-size: var(--font-sm); color: var(--gray-600); font-weight: 500; }
 .parcela-badge { background: var(--warning); color: white; font-size: var(--font-sm); padding: 3px var(--padding-md); border-radius: var(--radius-xl); font-weight: 500; display: inline-block; }
-.venc-badge { background: #f0f9ff; color: #0369a1; font-size: var(--font-sm); padding: 3px var(--padding-md); border-radius: var(--radius-xl); font-weight: 500; display: inline-block; border: 1px solid #bae6fd; }
-body.dark .venc-badge { background: #0c2a3e; color: #7dd3fc; border-color: #075985; }
+/* venc-badge removido — vencimento agora é inline na linha da data */
+.transacao-data-extra { opacity: .65; font-size: var(--font-sm); }
+.comprado-em-badge { background: #f0fdf4; color: #15803d; font-size: var(--font-sm); padding: 2px var(--padding-sm); border-radius: var(--radius-full); border: 1px solid #bbf7d0; display: inline-block; }
+body.dark .comprado-em-badge { background: #052e16; color: #86efac; border-color: #166534; }
 .status-badge { font-size: var(--font-sm); padding: 3px var(--padding-md); border-radius: var(--radius-xl); font-weight: 500; display: inline-block; }
 .status-badge.pago { background: var(--success-light); color: var(--success); }
 .status-badge.pendente { background: var(--warning-light); color: var(--warning); }

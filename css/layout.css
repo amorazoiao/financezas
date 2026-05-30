@@ -1,0 +1,307 @@
+/* ====================================================
+   layout.css — Container, telas, nav, bottom sheets
+   LAYOUT NOVO + botão de ação da versão antiga (pulse-ring)
+   ==================================================== */
+
+/* ========== MENU INFERIOR MODERNO (iOS Style) ========== */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 0.5px solid rgba(0,0,0,0.08);
+    z-index: 1000;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    height: auto;
+    min-height: 70px;
+    transition: background 0.3s ease;
+}
+
+body.dark .bottom-nav { 
+    background: rgba(15,23,42,0.96);
+    border-top-color: rgba(255,255,255,0.08);
+}
+
+.nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 4px;
+    border-radius: var(--radius-lg);
+    transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    gap: 4px;
+    min-height: 50px;
+    touch-action: manipulation;
+    color: var(--gray-400);
+}
+
+.nav-icon { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px; 
+    opacity: 0.6; 
+    transition: all 0.2s ease; 
+}
+.nav-icon svg { width: 22px; height: 22px; transition: all 0.2s; }
+
+.nav-label { 
+    font-size: 10px; 
+    font-weight: 500; 
+    opacity: 0.6; 
+    transition: all 0.2s ease; 
+    color: var(--gray-600);
+    letter-spacing: 0.02em;
+}
+
+.nav-item.active .nav-icon { 
+    opacity: 1; 
+    transform: translateY(-2px); 
+}
+.nav-item.active .nav-icon svg { stroke-width: 2.5; }
+
+.nav-item.active .nav-label { 
+    opacity: 1; 
+    color: var(--primary); 
+    font-weight: 600; 
+}
+
+.nav-item.active { color: var(--primary); }
+body.dark .nav-item { color: #475569; }
+body.dark .nav-item.active { color: var(--primary); }
+
+.nav-item:active { 
+    transform: scale(0.95);
+    transition: transform 0.05s;
+}
+
+/* ========== BOTÃO CENTRAL — efeito pulse da versão antiga ========== */
+.nav-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 2px;
+    touch-action: manipulation;
+    position: relative;
+}
+
+.nav-center-circle {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(114,173,231,0.45);
+    transition: all 0.2s ease;
+    margin-top: -14px;
+    position: relative;
+}
+
+.nav-center-circle i { 
+    width: 24px; height: 24px; color: white; stroke-width: 2.5; display: block; 
+}
+
+/* Pulse ring — efeito da versão antiga */
+.nav-center-circle::before { 
+    content: ''; 
+    position: absolute; 
+    top: -4px; left: -4px; right: -4px; bottom: -4px; 
+    border-radius: 70px; 
+    background: rgba(114,173,231,0.4); 
+    animation: pulse-ring 1.5s infinite; 
+    z-index: -1; 
+}
+@keyframes pulse-ring { 
+    0%   { transform: scale(0.8); opacity: 0.8; } 
+    100% { transform: scale(1.4); opacity: 0; } 
+}
+
+.nav-center:active .nav-center-circle { 
+    transform: scale(0.92); 
+    transition: transform 0.05s;
+}
+
+/* Micro-feedback no FAB */
+.nav-center-circle:active {
+    transform: scale(0.88) rotate(45deg);
+}
+
+.nav-center small { 
+    font-size: 11px; 
+    color: var(--gray-600); 
+    background: rgba(0,0,0,0.05); 
+    padding: 2px 8px; 
+    border-radius: 20px; 
+    margin-top: 2px; 
+}
+body.dark .nav-center small { 
+    color: var(--gray-400); 
+    background: rgba(255,255,255,0.1); 
+}
+
+/* ========== BOTTOM SHEETS ESTILO NATIVO ========== */
+.sheet-overlay { 
+    display: none; 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0,0,0,0.5); 
+    backdrop-filter: blur(8px);
+    align-items: flex-end; 
+    justify-content: center; 
+    z-index: 2000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.sheet-content { 
+    background: white; 
+    width: 100%; 
+    max-width: 500px; 
+    border-radius: 28px 28px 0 0; 
+    padding: 24px 20px 32px; 
+    animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1); 
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+    touch-action: pan-y;
+}
+
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+body.dark .sheet-content { background: #1e293b; }
+
+.sheet-header { 
+    font-size: 20px; 
+    font-weight: 700; 
+    margin-bottom: 20px; 
+    text-align: center; 
+    color: var(--gray-800); 
+}
+
+.sheet-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 16px; 
+}
+
+.sheet-option { 
+    background: var(--gray-50); 
+    border-radius: 20px; 
+    padding: 16px 12px; 
+    text-align: center; 
+    cursor: pointer; 
+    transition: all 0.15s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    border: 1px solid var(--gray-100);
+    touch-action: manipulation;
+}
+
+body.dark .sheet-option { 
+    background: #0f172a; 
+    border-color: #334155; 
+}
+
+.sheet-option:active { 
+    transform: scale(0.97); 
+    background: var(--primary-light); 
+}
+
+.sheet-option .icon { 
+    font-size: 32px; 
+    margin-bottom: 8px; 
+    display: block; 
+}
+
+.sheet-option .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.sheet-option .sub { font-size: 11px; color: var(--gray-500); }
+
+/* ========== BANNERS PWA ========== */
+.pwa-banner-inner {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 60px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    z-index: 9998;
+    font-size: 14px;
+    white-space: nowrap;
+    max-width: 90vw;
+    animation: slideUpBanner 0.3s ease;
+}
+@keyframes slideUpBanner {
+    from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+.pwa-banner-icon { font-size: 1.4rem; }
+.pwa-banner-btn { 
+    background: var(--primary); 
+    color: white; 
+    border: none; 
+    border-radius: 40px; 
+    padding: 8px 16px; 
+    font-weight: 600; 
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.pwa-banner-close { 
+    background: none; 
+    border: none; 
+    color: #94a3b8; 
+    cursor: pointer; 
+    font-size: 1.2rem;
+    padding: 8px;
+    touch-action: manipulation;
+}
+
+/* ========== ANIMAÇÕES DE TRANSIÇÃO ENTRE TELAS ========== */
+@keyframes fadeOutScale {
+    to { opacity: 0; transform: scale(0.96); }
+}
+.screen.exit {
+    animation: fadeOutScale 0.15s ease forwards;
+}
+
+/* Botão scroll to top */
+.scroll-top-btn {
+    position: fixed;
+    bottom: 90px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+}
+.scroll-top-btn:active { transform: scale(0.92); }
+.scroll-top-btn.visible { opacity: 1; }
