@@ -38,7 +38,7 @@ function renderCartoesCarrossel() {
 
   if (cartoes.length === 0) {
     container.innerHTML = `
-      <div style="min-width:100%;text-align:center;padding:var(--space-4xl);color:var(--gray-400);">
+      <div class="carrossel-empty">
         <div style="font-size:var(--font-5xl);">💳</div>
         <div style="font-size:var(--font-base);">Nenhum cartão cadastrado</div>
       </div>`;
@@ -141,7 +141,7 @@ function renderDetalhesCartao() {
         <button class="fatura-periodo-btn" onclick="navegarMesFatura(-1)">◀</button>
         <div style="text-align:center;">
           <div class="fatura-periodo-mes" id="fatura-mes-display-new">${mesesNomes[currentFaturaMes]} ${currentFaturaAno}</div>
-          <div style="font-size:var(--font-sm);margin-top:2px;">
+          <div class="ct-fatura-sub">
             <span class="fatura-status-badge aberta" id="fatura-status-badge">ABERTA</span>
           </div>
         </div>

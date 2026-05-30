@@ -48,8 +48,16 @@ let _cacheTodosLancamentos = null;
 let _cacheTimestamp = null;
 
 // ---------- Categorias padrão ----------
-let categoriasReceitaPadrao = ['Salário', 'Investimentos', 'Freelance', 'Presentes', 'Outros'];
-let categoriasDespesaPadrao = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Saúde', 'Educação', 'Contas'];
+let categoriasReceitaPadrao = [
+  'Salário', 'Freelance', 'Investimentos', 'Reembolso',
+  'Venda', 'Presentes', 'Outras Receitas',
+];
+let categoriasDespesaPadrao = [
+  'Alimentação', 'Moradia', 'Transporte', 'Contas',
+  'Saúde', 'Educação', 'Lazer', 'Compras',
+  'Assinaturas', 'Pets', 'Beleza', 'Presentes',
+  'Imprevistos', 'Outros',
+];
 
 /** Nomes dos meses em português. */
 const mesesNomes = [

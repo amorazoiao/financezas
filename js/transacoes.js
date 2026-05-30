@@ -4,63 +4,242 @@
 // Depende de: utils.js, storage.js, recorrencias.js, dialogs.js
 // =============================================================================
 
-// ---------- Modal de transação ----------
+// ---------- Modal unificado de lançamento ----------
+
+/** Tipo atual do modal: 'receita' | 'despesa' */
+let _modalTipo = 'despesa';
+/** Forma de pagamento atual: 'avista' | 'cartao' | 'recorrente' */
+let _modalForma = 'avista';
+/** Número de parcelas selecionado */
+let _modalParcelas = 1;
 
 /**
- * Abre o modal de nova receita ou despesa com campos zerados.
- * @param {'receita'|'despesa'} tipo - Tipo da transação.
+ * Ponto de entrada unificado — chamado pelo bottom sheet.
+ * @param {'receita'|'despesa'} tipo
+ */
+function abrirNovoLancamento(tipo) {
+  closeSheet('newSheet');
+  abrirModalTransacao(tipo);
+}
+
+/**
+ * Abre o modal unificado para nova transação ou receita.
+ * @param {'receita'|'despesa'} tipo
  */
 function abrirModalTransacao(tipo) {
-  const idInput = document.getElementById('transacao-id');
+  _modalTipo   = tipo;
+  _modalForma  = 'avista';
+  _modalParcelas = 1;
+
+  const idInput   = document.getElementById('transacao-id');
   const dataInput = document.getElementById('transacao-data');
   const descInput = document.getElementById('transacao-desc');
   const valorInput = document.getElementById('transacao-valor');
-  const catSelect = document.getElementById('transacao-cat');
-  const modalTitulo = document.getElementById('modal-titulo');
+  const catSelect  = document.getElementById('transacao-cat');
+  const titulo     = document.getElementById('modal-titulo');
 
-  if (idInput) idInput.value = '';
-  if (dataInput) dataInput.value = hojeLocal();
-  if (descInput) descInput.value = '';
+  if (idInput)    idInput.value   = '';
+  if (dataInput)  dataInput.value = hojeLocal();
+  if (descInput)  descInput.value = '';
   if (valorInput) valorInput.value = '';
 
-  // Carrega categorias conforme o tipo
+  // Categorias conforme tipo
   if (catSelect) {
     catSelect.innerHTML = '';
-    const categorias = tipo === 'receita' ? getCategoriasReceita() : getCategoriasDespesa();
-    categorias.forEach(c => catSelect.add(new Option(c, c)));
+    const cats = tipo === 'receita' ? getCategoriasReceita() : getCategoriasDespesa();
+    cats.forEach(c => catSelect.add(new Option(c, c)));
   }
 
-  if (modalTitulo) modalTitulo.innerHTML = tipo === 'receita' ? '💰 Nova Receita' : '💸 Nova Despesa';
+  if (titulo) titulo.textContent = tipo === 'receita' ? '💰 Nova Receita' : '💸 Nova Despesa';
 
-  // Reseta painel de recorrência
+  // Seletor de forma de pagamento: só para despesas
+  const formaPagGrupo = document.getElementById('forma-pag-grupo');
+  const receitaToggle = document.getElementById('receita-recorrencia-toggle');
+  if (tipo === 'despesa') {
+    if (formaPagGrupo) formaPagGrupo.style.display = 'block';
+    if (receitaToggle) receitaToggle.style.display  = 'none';
+    _aplicarFormaPagamento('avista'); // padrão: à vista
+  } else {
+    if (formaPagGrupo) formaPagGrupo.style.display = 'none';
+    if (receitaToggle) receitaToggle.style.display  = 'flex';
+    _esconderSecoesExtras();
+  }
+
+  // Resetar chips de forma de pagamento
+  document.querySelectorAll('.forma-pag-chip').forEach(c => c.classList.remove('active'));
+  const chipAvista = document.querySelector('.forma-pag-chip[data-forma="avista"]');
+  if (chipAvista) chipAvista.classList.add('active');
+
+  // Resetar chips de parcelas
+  document.querySelectorAll('.parcela-chip').forEach(c => c.classList.remove('active'));
+  const chip1x = document.querySelector('.parcela-chip[data-parc="1"]');
+  if (chip1x) chip1x.classList.add('active');
+
+  // Resetar recorrência
   _resetarPainelRecorrencia();
+
+  // Popular cartões nos selects
+  _popularSelectsCartao();
 
   const modal = document.getElementById('modal-transacao');
   if (modal) modal.style.display = 'flex';
 
   setTimeout(() => {
     if (valorInput && !valorInput.value) valorInput.value = '0,00';
-    toggleCartaoRecorrencia(); // garante que opção cartão some em receitas
-    verificarExibicaoGerarHoje();
     setupMoneyInputs();
+    // Recalcula info de parcela ao digitar
+    const vInput = document.getElementById('transacao-valor');
+    if (vInput) {
+      vInput.addEventListener('keyup', _atualizarInfoParcela);
+      vInput.addEventListener('beforeinput', () => setTimeout(_atualizarInfoParcela, 10));
+    }
   }, 50);
 }
 
 /**
- * Abre o modal com a opção de recorrência já ativada.
- * @param {'receita'|'despesa'} tipo - Tipo da transação.
+ * Seleciona a forma de pagamento e mostra/oculta as seções correspondentes.
+ * Chamado pelos chips de forma de pagamento.
+ * @param {HTMLElement} chip
  */
-function abrirModalTransacaoComRecorrencia(tipo) {
-  abrirModalTransacao(tipo);
-  setTimeout(() => {
-    const recCheckbox = document.getElementById('recorrencia-ativa');
-    if (recCheckbox) recCheckbox.checked = true;
-    toggleRecorrenciaConfig();
-    toggleCartaoRecorrencia();
-    _atualizarDiaRecorrencia();
-    verificarExibicaoGerarHoje();
-  }, 100);
+function selecionarFormaPagamento(chip) {
+  document.querySelectorAll('.forma-pag-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _aplicarFormaPagamento(chip.dataset.forma);
 }
+
+/**
+ * Aplica a lógica de exibição para cada forma de pagamento.
+ * @private
+ */
+function _aplicarFormaPagamento(forma) {
+  _modalForma = forma;
+  const secCartao      = document.getElementById('secao-cartao');
+  const secRecorrente  = document.getElementById('secao-recorrente');
+  const btnSalvar      = document.getElementById('btn-salvar-transacao');
+
+  secCartao?.style && (secCartao.style.display     = forma === 'cartao'     ? 'block' : 'none');
+  secRecorrente?.style && (secRecorrente.style.display = forma === 'recorrente' ? 'block' : 'none');
+
+  if (btnSalvar) {
+    btnSalvar.textContent = forma === 'cartao'     ? 'Lançar no cartão' :
+                            forma === 'recorrente' ? 'Criar recorrência' : 'Salvar';
+  }
+
+  // Atualizar info de parcela se cartão
+  if (forma === 'cartao') _atualizarInfoParcela();
+}
+
+/** @private Oculta seções extras (para receita) */
+function _esconderSecoesExtras() {
+  document.getElementById('secao-cartao')?.style     && (document.getElementById('secao-cartao').style.display = 'none');
+  document.getElementById('secao-recorrente')?.style && (document.getElementById('secao-recorrente').style.display = 'none');
+}
+
+/**
+ * Seleciona número de parcelas no modal unificado.
+ * @param {HTMLElement} chip
+ */
+function selecionarParcelas(chip) {
+  document.querySelectorAll('.parcela-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _modalParcelas = parseInt(chip.dataset.parc);
+  _atualizarInfoParcela();
+}
+
+/** @private Calcula e exibe info da parcela */
+function _atualizarInfoParcela() {
+  const infoEl = document.getElementById('info-parcela');
+  if (!infoEl) return;
+  const valor = currencyToNumber(document.getElementById('transacao-valor')?.value || '0');
+  if (valor > 0 && _modalParcelas > 1) {
+    const valorParcela = (valor / _modalParcelas).toFixed(2);
+    infoEl.style.display = 'block';
+    infoEl.textContent = `💡 ${_modalParcelas}x de ${formatMoney(parseFloat(valorParcela))} — vencimento após fechamento`;
+  } else {
+    infoEl.style.display = 'none';
+  }
+}
+
+/** @private Popular selects de cartão no modal unificado */
+function _popularSelectsCartao() {
+  ['transacao-cartao-sel', 'recorrencia-cartao'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = cartoes.length
+      ? cartoes.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('')
+      : '<option value="">Nenhum cartão cadastrado</option>';
+  });
+}
+
+/**
+ * Salva a transação do modal unificado roteando para a função correta.
+ */
+function salvarTransacaoUnificada() {
+  const id = document.getElementById('transacao-id')?.value;
+
+  // Edição: usar fluxo original
+  if (id) { salvarTransacao(); return; }
+
+  if (_modalTipo === 'receita') {
+    salvarTransacao(); // receita sempre usa fluxo normal
+    return;
+  }
+
+  // Despesa: rotear conforme forma
+  if (_modalForma === 'cartao') {
+    _salvarCompraDoModal();
+  } else if (_modalForma === 'recorrente') {
+    salvarTransacao(); // recorrência usa o fluxo existente
+  } else {
+    salvarTransacao(); // à vista
+  }
+}
+
+/**
+ * Salva uma compra parcelada a partir do modal unificado.
+ * @private
+ */
+function _salvarCompraDoModal() {
+  const cartaoId   = document.getElementById('transacao-cartao-sel')?.value;
+  const descricao  = document.getElementById('transacao-desc')?.value.trim();
+  const valorTotal = currencyToNumber(document.getElementById('transacao-valor')?.value);
+  const data       = document.getElementById('transacao-data')?.value;
+  const categoria  = document.getElementById('transacao-cat')?.value;
+
+  if (!cartaoId)              { showToast('Selecione um cartão', true); return; }
+  if (!descricao)             { showToast('Informe a descrição', true); return; }
+  if (!valorTotal || valorTotal <= 0) { showToast('Informe o valor', true); return; }
+  if (!data)                  { showToast('Informe a data', true); return; }
+
+  const cartao = cartoes.find(c => c.id === cartaoId);
+  if (!cartao) { showToast('Cartão não encontrado', true); return; }
+
+  const parcelas    = _modalParcelas;
+  const valorParcela = parseFloat((valorTotal / parcelas).toFixed(2));
+
+  compras.push({
+    id: gerarId('compra'),
+    cartaoId,
+    descricao,
+    valorTotal,
+    valorParcela,
+    parcelas,
+    parcelasPagas: 0,
+    dataCompra: data,
+    categoria: categoria || 'Outros',
+  });
+
+  invalidarCacheLancamentos();
+  salvarTudo();
+  renderTudo();
+  fecharModal('modal-transacao');
+  showToast(`Compra lançada em ${parcelas}x de ${formatMoney(valorParcela)}`);
+}
+
+/**
+ * Abre o modal para EDITAR uma transação existente.
+ * @param {string} id
+ */
 
 /**
  * Salva a transação (nova, edição ou criação de recorrência).
@@ -179,43 +358,51 @@ function excluirItem(id) {
  */
 function atualizarReservaDisplay() {
   const total = reservaMetas.reduce((s, m) => s + (m.atual || 0), 0);
-  const meta = reservaMetas.reduce((s, m) => s + m.valor, 0);
+  const meta  = reservaMetas.reduce((s, m) => s + m.valor, 0);
+  const pct   = meta > 0 ? Math.min((total / meta) * 100, 100) : 0;
 
-  const totalReservadoEl = document.getElementById('total-reservado');
-  const metaTotalEl = document.getElementById('meta-total');
-  const progressPercentEl = document.getElementById('progress-percent');
-  const progressFillEl = document.getElementById('progress-reserva-fill');
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl('total-reservado',   formatMoney(total));
+  setEl('meta-total',        formatMoney(meta));
+  setEl('progress-percent',  pct.toFixed(1) + '%');
 
-  if (totalReservadoEl) totalReservadoEl.innerHTML = formatMoney(total);
-  if (metaTotalEl) metaTotalEl.innerHTML = formatMoney(meta);
-  if (progressPercentEl) progressPercentEl.innerHTML = meta > 0 ? ((total / meta) * 100).toFixed(1) + '%' : '0%';
-  if (progressFillEl) progressFillEl.style.width = meta > 0 ? `${Math.min((total / meta) * 100, 100)}%` : '0%';
+  const fill = document.getElementById('progress-reserva-fill');
+  if (fill) fill.style.width = pct + '%';
 
   const container = document.getElementById('metas-reserva-list');
   if (!container) return;
 
   if (reservaMetas.length === 0) {
-    container.innerHTML = '<div class="empty-state-modern"><div class="icon">🎯</div><div class="title">Nenhuma meta</div></div>';
+    container.innerHTML = `
+      <div class="empty-state-modern">
+        <div class="icon">🎯</div>
+        <div class="title">Nenhuma meta criada</div>
+        <div class="subtitle">Adicione uma meta para começar a reservar</div>
+      </div>`;
     return;
   }
 
   container.innerHTML = '';
   for (const metaObj of reservaMetas) {
-    const pm = metaObj.valor > 0 ? ((metaObj.atual || 0) / metaObj.valor * 100) : 0;
-    container.innerHTML += `
-      <div class="meta-item">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong>${escapeHtml(metaObj.nome)}</strong>
-          <div class="meta-actions">
-            <button onclick="editarMeta('${metaObj.id}')" title="Editar">✏️</button>
-            <button onclick="excluirMeta('${metaObj.id}')" title="Excluir" style="color:var(--danger);">🗑️</button>
+    const pm  = metaObj.valor > 0 ? Math.min((metaObj.atual || 0) / metaObj.valor * 100, 100) : 0;
+    const cor = pm >= 100 ? '#1D9E75' : '#72ADE7';
+    container.insertAdjacentHTML('beforeend', `
+      <div class="rsv-meta-card">
+        <div class="rsv-meta-top">
+          <div class="rsv-meta-nome">${escapeHtml(metaObj.nome)}</div>
+          <div class="rsv-meta-acoes">
+            <button class="rsv-meta-btn" onclick="editarMeta('${metaObj.id}')" title="Editar">✏️</button>
+            <button class="rsv-meta-btn" onclick="excluirMeta('${metaObj.id}')" title="Excluir">🗑️</button>
           </div>
         </div>
-        <div style="font-size:var(--font-base); margin-top:var(--margin-xs);">${formatMoney(metaObj.atual || 0)} de ${formatMoney(metaObj.valor)}</div>
-        <div style="height:6px; background:var(--gray-200); border-radius:var(--radius-full); margin-top:var(--margin-xs);">
-          <div style="width:${Math.min(pm, 100)}%; background:${pm >= 100 ? 'var(--success)' : 'var(--primary)'}; border-radius:var(--radius-full); height:100%;"></div>
+        <div class="rsv-meta-valores">
+          <span class="rsv-meta-atual">${formatMoney(metaObj.atual || 0)}</span>
+          <span>de ${formatMoney(metaObj.valor)} • ${pm.toFixed(1)}%</span>
         </div>
-      </div>`;
+        <div class="rsv-meta-barra-bg">
+          <div class="rsv-meta-barra-fill" style="width:${pm}%; background:${cor};"></div>
+        </div>
+      </div>`);
   }
 }
 

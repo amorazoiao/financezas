@@ -15,18 +15,30 @@ const CATEGORIAS_ESSENCIAIS = ['Alimentação', 'Moradia', 'Saúde', 'Educação
  * @constant {Object.<string, string>}
  */
 const CATEGORY_COLORS = {
+  // Receitas
   'Salário':          '#1D9E75',
   'Freelance':        '#0F6E56',
   'Investimentos':    '#185FA5',
   'Presentes':        '#D4537E',
+  'Reembolso':        '#378ADD',
+  'Venda':            '#639922',
+  'Outras Receitas':  '#B4B2A9',
+  // Despesas essenciais
   'Alimentação':      '#EF9F27',
   'Moradia':          '#BA7517',
   'Transporte':       '#378ADD',
   'Saúde':            '#2ED573',
   'Educação':         '#534AB7',
   'Contas':           '#888780',
+  // Despesas variáveis
   'Lazer':            '#D85A30',
+  'Compras':          '#D4537E',
+  'Assinaturas':      '#A55EEA',
+  'Pets':             '#97C459',
+  'Beleza':           '#FF69B4',
+  'Imprevistos':      '#E24B4A',
   'Outros':           '#B4B2A9',
+  // Internos
   'Pagamento Fatura': '#5F5E5A',
   'Reserva':          '#97C459',
 };
@@ -148,7 +160,6 @@ function _renderMiniCategorias() {
   if (!container) return;
 
   const gastos = _calcularGastosPorCategoria(dashMes, dashAno);
-  const total  = Object.values(gastos).reduce((s, v) => s + v, 0);
   const top    = Object.entries(gastos).sort((a, b) => b[1] - a[1]).slice(0, 4);
 
   if (top.length === 0) {
@@ -156,19 +167,30 @@ function _renderMiniCategorias() {
     return;
   }
 
+  // Gastos do mês anterior para calcular tendência
+  const mesAnt = dashMes === 0 ? 11 : dashMes - 1;
+  const anoAnt = dashMes === 0 ? dashAno - 1 : dashAno;
+  const gastosAnt = _calcularGastosPorCategoria(mesAnt, anoAnt);
+
   container.innerHTML = top.map(([cat, val]) => {
-    const pct  = total > 0 ? (val / total * 100).toFixed(0) : 0;
-    const cor  = getCategoriaColor(cat);
+    const cor    = getCategoriaColor(cat);
+    const valAnt = gastosAnt[cat] || 0;
+
+    // Tendência vs mês anterior
+    let tendencia = '';
+    if (valAnt > 0) {
+      const delta = ((val - valAnt) / valAnt * 100);
+      const seta  = delta > 0 ? '↑' : '↓';
+      const cor2  = delta > 0 ? '#E24B4A' : '#1D9E75';
+      tendencia   = `<span class="db-mini-trend" style="color:${cor2}">${seta}${Math.abs(delta).toFixed(0)}%</span>`;
+    }
+
     return `
-      <div>
-        <div class="db-mini-row">
-          <div class="db-mini-dot" style="background:${cor};"></div>
-          <div class="db-mini-nome">${escapeHtml(cat)}</div>
-          <div class="db-mini-val">${pct}%</div>
-        </div>
-        <div class="db-prog-bg">
-          <div class="db-prog-fill" style="width:${pct}%; background:${cor};"></div>
-        </div>
+      <div class="db-mini-row">
+        <div class="db-mini-dot" style="background:${cor};"></div>
+        <div class="db-mini-nome">${escapeHtml(cat)}</div>
+        ${tendencia}
+        <div class="db-mini-val">${formatMoney(val)}</div>
       </div>`;
   }).join('');
 }
@@ -971,26 +993,71 @@ function renderHistorico() {
   const tipoFiltro = document.getElementById('filter-type')?.value || 'all';
   const catFiltro  = document.getElementById('filter-cat')?.value  || 'all';
 
-  let itens = obterTodosLancamentosParaUI();
+  // ── 1. Lançamentos normais (receitas, despesas, pagamentos) ──────────────
+  let normais = lancamentos.filter(t => {
+    if (tipoFiltro === 'receita') return t.valor > 0 && t.tipo !== 'pagamento_fatura';
+    if (tipoFiltro === 'despesa') return t.valor < 0;
+    return true; // 'all'
+  });
+  if (catFiltro !== 'all') normais = normais.filter(t => t.categoria === catFiltro);
 
-  if (tipoFiltro === 'receita') itens = itens.filter(i => i.valor > 0 && i.tipo !== 'pagamento_fatura');
-  else if (tipoFiltro === 'despesa') itens = itens.filter(i => i.valor < 0);
-  if (catFiltro !== 'all') itens = itens.filter(i => i.categoria === catFiltro);
+  // ── 2. Compras parceladas unificadas (uma entrada por compra) ────────────
+  // Só inclui se o filtro de tipo permite despesas/cartão ou é 'all'
+  let parceladasUnificadas = [];
+  if (tipoFiltro === 'all' || tipoFiltro === 'despesa') {
+    for (const compra of compras) {
+      if (catFiltro !== 'all' && compra.categoria !== catFiltro) continue;
+      const cartao = cartoes.find(c => c.id === compra.cartaoId);
+      parceladasUnificadas.push({
+        id: compra.id,
+        data: compra.dataCompra,          // data real da compra
+        dataCompra: compra.dataCompra,
+        descricao: compra.descricao,
+        categoria: compra.categoria,
+        valor: -compra.valorTotal,        // valor total da compra
+        tipo: 'compra_parcelada',
+        parcelas: compra.parcelas,
+        parcelasPagas: compra.parcelasPagas,
+        valorParcela: compra.valorParcela,
+        cartaoId: compra.cartaoId,
+        compraId: compra.id,
+        _cartaoNome: cartao?.nome || 'Cartão',
+        _unificada: true,                 // flag: entrada unificada, não parcela individual
+      });
+    }
+  }
 
-  // Ordena pela data real do gasto:
-  // parcelas de cartão usam dataCompra (quando a compra foi feita),
-  // demais lançamentos usam data normalmente.
+  // ── 3. Une e ordena por data decrescente ─────────────────────────────────
+  let itens = [...normais, ...parceladasUnificadas];
   itens.sort((a, b) => {
     const da = parseLocalDate(a.dataCompra || a.data);
     const db = parseLocalDate(b.dataCompra || b.data);
     return db - da;
   });
 
+  // ── 4. Filtra pela última semana (7 dias) ─────────────────────────────────
+  const hoje = new Date();
+  hoje.setHours(23, 59, 59, 999);
+  const seteDiasAtras = new Date(hoje);
+  seteDiasAtras.setDate(hoje.getDate() - 6); // inclui hoje → 7 dias completos
+  seteDiasAtras.setHours(0, 0, 0, 0);
+
+  const itensSemana = itens.filter(t => {
+    const d = parseLocalDate(t.dataCompra || t.data);
+    return d >= seteDiasAtras && d <= hoje;
+  }).slice(0, 30); // limite de segurança
+
+  // ── 5. Renderização ───────────────────────────────────────────────────────
   const container = document.getElementById('history-list');
   if (!container) return;
 
-  if (itens.length === 0) {
-    container.innerHTML = '<div class="empty-state-modern"><div class="icon">📭</div><div class="title">Nenhuma transação encontrada</div></div>';
+  if (itensSemana.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state-modern">
+        <div class="icon">📭</div>
+        <div class="title">Nenhum lançamento esta semana</div>
+        <div class="subtitle">Os últimos registros aparecem aqui</div>
+      </div>`;
     return;
   }
 
@@ -998,14 +1065,25 @@ function renderHistorico() {
   const cd = container.querySelector('.transacoes-container');
   let ultimaData = '';
 
-  for (const t of itens.slice(0, 10)) {
-    // Exibe a data real do gasto (dataCompra para parcelas, data para os demais)
+  for (const t of itensSemana) {
     const dataExibir = t.dataCompra || t.data;
-    const dataLabel  = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    const dObj = parseLocalDate(dataExibir);
+
+    // Cabeçalho de dia — usa "Hoje" / "Ontem" quando aplicável
+    const diffDias = Math.round((hoje.setHours(0,0,0,0) - dObj.setHours(0,0,0,0)) / 86400000);
+    hoje.setHours(23, 59, 59, 999); // restaura
+    dObj.setHours(12, 0, 0, 0);     // restaura
+
+    let dataLabel;
+    if (diffDias === 0)      dataLabel = 'Hoje';
+    else if (diffDias === 1) dataLabel = 'Ontem';
+    else                     dataLabel = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+
     if (dataLabel !== ultimaData && cd) {
       cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
+
     if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t));
   }
 }
@@ -1032,8 +1110,13 @@ function carregarExtratoComFiltro(mes, ano) {
     });
 
   _extratoCache = filtrados;
-  const selTipo = document.getElementById('extrato-filter-type');
-  if (selTipo) selTipo.value = 'all';
+
+  // Reseta chips para estado inicial
+  const barraEl = document.getElementById('ext-filters-bar');
+  if (barraEl) {
+    barraEl.querySelectorAll('.ext-chip').forEach(c => c.classList.remove('active'));
+    barraEl.querySelector('.ext-chip[data-tipo="all"]')?.classList.add('active');
+  }
 
   _renderResumoExtrato(filtrados, mes, ano);
   _renderListaExtrato(filtrados);
@@ -1072,12 +1155,13 @@ function _renderResumoExtrato(filtrados, mes, ano) {
     ${card('Economia',    Math.abs(economia), economia >= 0 ? 'positivo' : 'negativo')}
   </div>`;
 
-  // Popula select de categorias do filtro
-  const catSelect = document.getElementById('extrato-filter-cat');
-  if (catSelect) {
+  // Popula chips de categoria na barra de filtros
+  const chipsCat = document.getElementById('ext-chips-cat');
+  if (chipsCat) {
     const cats = [...new Set(filtrados.map(t => t.categoria).filter(Boolean))].sort();
-    catSelect.innerHTML = '<option value="all">📁 Categorias</option>' +
-      cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    chipsCat.innerHTML = cats.map(c =>
+      `<button class="ext-chip" data-cat="${escapeHtml(c)}" onclick="filtrarExtratoChip(this,'cat')">${escapeHtml(c)}</button>`
+    ).join('');
   }
 }
 
@@ -1086,21 +1170,47 @@ function _renderResumoExtrato(filtrados, mes, ano) {
  * @param {Array} filtrados - Lista de lançamentos filtrados.
  * @private
  */
-// Cache dos lançamentos do mês para aplicar filtros sem re-buscar
-let _extratoCache = [];
+/**
+ * Filtra o extrato via chips de tipo ou categoria.
+ * @param {HTMLElement} chip — chip clicado
+ * @param {'tipo'|'cat'} grupo — qual grupo de chips
+ */
+function filtrarExtratoChip(chip, grupo) {
+  // Desativa outros chips do mesmo grupo
+  const barraEl = document.getElementById('ext-filters-bar');
+  if (!barraEl) return;
+
+  if (grupo === 'tipo') {
+    barraEl.querySelectorAll('.ext-chip[data-tipo]').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    // Reseta filtro de categoria
+    barraEl.querySelectorAll('.ext-chip[data-cat]').forEach(c => c.classList.remove('active'));
+  } else {
+    barraEl.querySelectorAll('.ext-chip[data-cat]').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  }
+
+  aplicarFiltroExtrato();
+}
 
 /**
  * Aplica filtros de tipo e categoria sobre o cache do mês atual.
  */
 function aplicarFiltroExtrato() {
-  const tipo = document.getElementById('extrato-filter-type')?.value || 'all';
-  const cat  = document.getElementById('extrato-filter-cat')?.value  || 'all';
+  const barraEl = document.getElementById('ext-filters-bar');
+  const chipTipoAtivo = barraEl?.querySelector('.ext-chip[data-tipo].active');
+  const chipCatAtivo  = barraEl?.querySelector('.ext-chip[data-cat].active');
+
+  const tipo = chipTipoAtivo?.dataset.tipo || 'all';
+  const cat  = chipCatAtivo?.dataset.cat   || 'all';
 
   const filtrados = _extratoCache.filter(t => {
-    const passaTipo = tipo === 'all' || t.tipo === tipo ||
-      (tipo === 'despesa' && t.tipo === 'despesa_avista') ||
-      (tipo === 'receita' && t.valor > 0 && t.tipo !== 'pagamento_fatura');
-    const passaCat  = cat  === 'all' || t.categoria === cat;
+    const passaTipo =
+      tipo === 'all'  ||
+      (tipo === 'receita'          && t.valor > 0 && t.tipo !== 'pagamento_fatura') ||
+      (tipo === 'despesa'          && t.valor < 0 && t.tipo === 'despesa_avista') ||
+      (tipo === 'compra_parcelada' && t.tipo === 'compra_parcelada');
+    const passaCat = cat === 'all' || t.categoria === cat;
     return passaTipo && passaCat;
   });
   _renderListaExtrato(filtrados);
@@ -1127,7 +1237,20 @@ function _renderListaExtrato(filtrados) {
       cd.insertAdjacentHTML('beforeend', `<div class="grupo-dia">📅 ${dataLabel}</div>`);
       ultimaData = dataLabel;
     }
+
+    // Ajuste 2: se compra parcelada foi feita em mês diferente do extrato, sinaliza
+    if (t.dataCompra && t.dataCompra !== t.data) {
+      const compraD = parseLocalDate(t.dataCompra);
+      const vencD   = parseLocalDate(t.data);
+      if (compraD.getMonth() !== vencD.getMonth() || compraD.getFullYear() !== vencD.getFullYear()) {
+        const compraLabel = compraD.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+        // Injeta a info "comprado em X" no objeto antes de renderizar o card
+        t._compradoEmLabel = `comprado em ${compraLabel}`;
+      }
+    }
+
     if (cd) cd.insertAdjacentHTML('beforeend', _renderCardTransacao(t, true));
+    delete t._compradoEmLabel; // limpa após uso
   }
 }
 
@@ -1140,74 +1263,86 @@ function _renderListaExtrato(filtrados) {
  */
  
  function _renderCardTransacao(t, comBotaoExcluirCompra = false) {
-  let classe = '', icone = '', tipoLabel = '', badges = '', botoes = '';
-  
-  // Para parcelas de cartão: exibe data da compra, não do vencimento
+  // Ícone baseado na categoria (mais expressivo que tipo genérico)
+  const iconesCat = {
+    'Alimentação': '🍽️', 'Supermercado': '🛒', 'Restaurante': '🍽️',
+    'Transporte': '🚗', 'Uber': '🚕', 'Combustível': '⛽',
+    'Moradia': '🏠', 'Aluguel': '🏠', 'Contas': '💡',
+    'Saúde': '💊', 'Farmácia': '💊', 'Educação': '📚',
+    'Lazer': '🎮', 'Academia': '💪', 'Viagem': '✈️',
+    'Compras': '🛍️', 'Roupas': '👕',
+    'Assinaturas': '📱', 'Pets': '🐾', 'Beleza': '💇',
+    'Salário': '💼', 'Freelance': '💻', 'Investimentos': '📈',
+    'Reembolso': '↩️', 'Venda': '🏷️', 'Presentes': '🎁',
+    'Imprevistos': '⚠️',
+  };
+  const iconeCategoria = iconesCat[t.categoria] || (t.valor > 0 ? '💰' : '💸');
+
+  // Tipo e classe
+  let classe = 'despesa', iconeBase = iconeCategoria, botoes = '';
+  if (t.tipo === 'pagamento_fatura')  { classe = 'pagamento'; iconeBase = '🏦'; }
+  else if (t.valor > 0)               { classe = 'receita'; }
+  else if (t.tipo === 'compra_parcelada') { classe = 'cartao'; iconeBase = iconeCategoria; }
+
+  // Data
   const dataExibir   = t.dataCompra || t.data;
-  const dataFormatada = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', { 
-    day: '2-digit', 
-    month: 'short',
-    timeZone: 'America/Sao_Paulo'
+  const dataFormatada = parseLocalDate(dataExibir).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short', timeZone: 'America/Sao_Paulo',
   });
 
-  if (t.tipo === 'pagamento_fatura') {
-    classe = 'pagamento';
-    icone = '🏦';
-    tipoLabel = 'Pagamento';
-    badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
-  } else if (t.valor > 0) {
-    classe = 'receita';
-    icone = '💰';
-    tipoLabel = 'Receita';
-    badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
-    botoes = `<div class="transacao-actions">
-      <button class="btn-edit" onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
-      <button class="btn-delete" onclick="excluirItem('${t.id}')" title="Excluir">🗑️</button>
-    </div>`;
-  } else if (t.tipo === 'compra_parcelada') {
-    const cartaoNome = cartoes.find(c => c.id === t.cartaoId)?.nome || 'Cartão';
-    // Vencimento como info secundária
-    const vencLabel  = parseLocalDate(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    classe = 'cartao';
-    icone = '💳';
-    tipoLabel = `Compra ${t.parcelas}x`;
-    badges = `
-      <span class="transacao-categoria">${escapeHtml(t.categoria)}</span>
-      <span class="parcela-badge">💰 ${formatMoney(t.valorParcela)}/mês</span>
-      <span class="status-badge ${t.parcelasPagas === t.parcelas ? 'pago' : 'pendente'}">
-        💳 ${escapeHtml(cartaoNome)} • ${t.parcelasPagas}/${t.parcelas}
-      </span>
-      <span class="venc-badge">vence ${vencLabel}</span>`;
-    botoes = `<div class="transacao-actions">
-      <button class="btn-delete" onclick="excluirCompra('${t.compraId}')" title="Excluir compra">🗑️</button>
-    </div>`;
-  } else {
-    classe = 'despesa';
-    icone = '💸';
-    tipoLabel = 'Despesa';
-    badges = `<span class="transacao-categoria">${escapeHtml(t.categoria)}</span>`;
-    botoes = `<div class="transacao-actions">
-      <button class="btn-edit" onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
-      <button class="btn-delete" onclick="excluirItem('${t.id}')" title="Excluir">🗑️</button>
-    </div>`;
+  // Linha de sub-info (categoria · data · extras)
+  let subInfoParts = [];
+  if (t.categoria) subInfoParts.push(`<span class="transacao-cat-pill">${escapeHtml(t.categoria)}</span>`);
+  subInfoParts.push(`<span class="transacao-data-info">· ${dataFormatada}<span class="transacao-data-extra"></span></span>`);
+
+  // Badges extras (parcelas, vencimento, comprado em)
+  let extraBadges = '';
+  if (t.tipo === 'compra_parcelada') {
+    const cartaoNome = t._cartaoNome || cartoes.find(c => c.id === t.cartaoId)?.nome || 'Cartão';
+    if (t._unificada) {
+      // Entrada unificada no histórico: mostra total de parcelas e valor por parcela
+      const pagas   = t.parcelasPagas;
+      const restam  = t.parcelas - pagas;
+      const parcelaFmt = formatMoney(t.valorParcela);
+      extraBadges += `<span class="transacao-parcela-info">💳 ${escapeHtml(cartaoNome)} · ${t.parcelas}x ${parcelaFmt}${pagas > 0 ? ` · ${pagas} paga${pagas > 1 ? 's' : ''}` : ''}</span>`;
+      if (restam < t.parcelas) {
+        extraBadges += `<span class="comprado-em-badge">${restam} parcela${restam !== 1 ? 's' : ''} restante${restam !== 1 ? 's' : ''}</span>`;
+      }
+    } else {
+      // Entrada individual no extrato: mostra qual parcela e vencimento
+      const vencLabel = parseLocalDate(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      extraBadges += `<span class="transacao-parcela-info">💳 ${escapeHtml(cartaoNome)} ${t.parcelasPagas + 1}/${t.parcelas} · vence ${vencLabel}</span>`;
+      if (t._compradoEmLabel) {
+        extraBadges += `<span class="comprado-em-badge">${t._compradoEmLabel}</span>`;
+      }
+    }
   }
+
+  // Botões de ação
+  if (t.tipo === 'compra_parcelada') {
+    botoes = `<button class="btn-delete" onclick="excluirCompra('${t.compraId}')" title="Excluir">🗑️</button>`;
+  } else if (t.tipo !== 'pagamento_fatura') {
+    botoes = `
+      <button class="btn-edit"   onclick="editarTransacao('${t.id}')" title="Editar">✏️</button>
+      <button class="btn-delete" onclick="excluirItem('${t.id}')"     title="Excluir">🗑️</button>`;
+  }
+
+  // Sinal do valor
+  const sinal = t.valor > 0 ? '+' : '';
 
   return `
     <div class="transacao-card ${classe}">
-      <div class="transacao-main">
-        <div class="transacao-info-area">
-          <div class="transacao-header-row">
-            <span class="transacao-icone">${icone}</span>
-            <span class="transacao-tipo">${tipoLabel}</span>
-            <span class="transacao-data">• ${dataFormatada}</span>
-          </div>
-          <div class="transacao-descricao">${escapeHtml(t.descricao)}</div>
-          <div class="transacao-badges">${badges}</div>
+      <div class="transacao-icon-wrap">${iconeBase}</div>
+      <div class="transacao-info-area">
+        <div class="transacao-descricao">${escapeHtml(t.descricao)}</div>
+        <div class="transacao-sub">
+          ${subInfoParts.join('')}
         </div>
-        <div class="transacao-right-area">
-          <div class="transacao-valor">${formatMoney(t.valor)}</div>
-          ${botoes}
-        </div>
+        ${extraBadges ? `<div class="transacao-sub" style="margin-top:3px;">${extraBadges}</div>` : ''}
+      </div>
+      <div class="transacao-right-area">
+        <div class="transacao-valor">${sinal}${formatMoney(Math.abs(t.valor))}</div>
+        <div class="transacao-actions">${botoes}</div>
       </div>
     </div>`;
 }
@@ -1305,3 +1440,44 @@ function _calcularGastosPorCategoria(mes, ano) {
 
   return gastos;
 }
+
+/**
+ * Força a atualização completa do dashboard com dados frescos
+ */
+ 
+// =============================================================================
+// FORÇA ATUALIZAÇÃO DO DASHBOARD
+// =============================================================================
+
+function forcarAtualizacaoDashboard() {
+  console.log('[Dashboard] Forçando atualização completa...');
+  
+  if (typeof invalidarCacheLancamentos === 'function') {
+    invalidarCacheLancamentos();
+  }
+  
+  if (typeof carregarDados === 'function') {
+    carregarDados();
+  }
+  
+  const hoje = new Date();
+  if (typeof dashMes !== 'undefined') {
+    dashMes = hoje.getMonth();
+    dashAno = hoje.getFullYear();
+  }
+  
+  if (typeof _renderLinha1 === 'function') _renderLinha1();
+  if (typeof atualizarGrafico === 'function') atualizarGrafico();
+  if (typeof renderEvolutionChart === 'function') renderEvolutionChart();
+  if (typeof _atualizarChartMesLabel === 'function') _atualizarChartMesLabel();
+  if (typeof _renderLinha3 === 'function') _renderLinha3();
+  if (typeof _renderInsights === 'function') _renderInsights();
+  if (typeof renderHistorico === 'function') renderHistorico();
+  if (typeof _atualizarHeroBalance === 'function') _atualizarHeroBalance();
+  if (typeof _atualizarAnalise === 'function') _atualizarAnalise();
+  if (typeof calcularMetricasAvancadas === 'function') calcularMetricasAvancadas();
+  
+  console.log('[Dashboard] Atualização completa finalizada');
+}
+
+window.forcarAtualizacaoDashboard = forcarAtualizacaoDashboard;

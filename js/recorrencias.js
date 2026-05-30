@@ -350,62 +350,51 @@ function renderRecorrenciasTab() {
 /** @private Gera o HTML do cabeçalho de grupo de recorrências. */
 function _renderCabecalhoRecorrencia(icon, titulo, bgColor, textColor, total, comMargem = false) {
   return `
-    <div style="margin-bottom:var(--margin-md);${comMargem ? 'margin-top:var(--margin-lg);' : ''}padding:var(--padding-sm) var(--padding-md);background:${bgColor};border-radius:var(--radius-md);display:flex;align-items:center;">
-      <span style="font-size:var(--font-3xl);">${icon}</span>
-      <span style="font-weight:600;color:${textColor};">${titulo}</span>
-      <span style="margin-left:auto;font-size:var(--font-base);font-weight:600;">Total: ${formatMoney(total)}</span>
+    <div class="rec-grupo-header" style="margin-top:${comMargem ? 'var(--margin-lg)' : '0'};background:${bgColor};">
+      <span class="rec-grupo-icon">${icon}</span>
+      <span class="rec-grupo-titulo" style="color:${textColor};">${titulo}</span>
+      <span class="rec-grupo-total">Total: ${formatMoney(total)}</span>
     </div>`;
 }
 
 /** @private Gera o HTML de um card de recorrência (receita ou despesa). */
 function _renderCardRecorrencia(r, tipo) {
-  const hoje = new Date();
+  const hoje    = new Date();
   const proxima = calcularProximaDataRecorrencia(r);
-  const gerarHoje = verificarGeracaoHoje(r);
+  const gerarHoje  = verificarGeracaoHoje(r);
   const formaTexto = r.formaPagamento === 'cartao' ? '💳 Crédito' : '🏦 Débito/Pix';
-  const corValor = tipo === 'receita' ? 'var(--success)' : 'var(--danger)';
-  const prefixo = tipo === 'receita' ? '+' : '-';
+  const prefixo    = tipo === 'receita' ? '+' : '-';
 
-  let statusTexto = '';
-  let badgeHoje = '';
-
+  let statusTexto = '', statusClasse = '';
   if (!r.ativo) {
     statusTexto = '⏸️ Pausado';
   } else if (gerarHoje) {
-    statusTexto = '⚡ Hoje!';
-    badgeHoje = '<span class="badge-pulse" style="background:var(--success);color:white;padding:2px var(--padding-sm);border-radius:10px;font-size:var(--font-sm);margin-left:var(--margin-sm);">AGORA</span>';
+    statusTexto = '⚡ Gerar hoje!';
+    statusClasse = 'hoje';
   } else if (proxima) {
-    const dataFormatada = proxima.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    const dias = Math.ceil((proxima - hoje) / 86_400_000);
-    statusTexto = dias === 1 ? `📌 Amanhã (${dataFormatada})` : `📅 ${dataFormatada} (em ${dias}d)`;
+    const dataF = proxima.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    const dias  = Math.ceil((proxima - hoje) / 86_400_000);
+    statusTexto = dias <= 1 ? `📌 Amanhã (${dataF})` : `📅 ${dataF} — em ${dias}d`;
   }
 
-  const corStatus = gerarHoje ? 'var(--success)' : 'var(--gray-600)';
-  const icone = tipo === 'receita' ? '📅' : '🔄';
-
   return `
-    <div class="assinaturas-card ${tipo}" style="opacity:${r.ativo ? 1 : 0.5};">
-      <div style="display:flex;justify-content:space-between;align-items:start;">
-        <div style="flex:1;">
-          <div style="font-weight:600;font-size:var(--font-lg);display:flex;align-items:center;gap:var(--gap-sm);flex-wrap:wrap;">
-            ${icone} ${escapeHtml(r.descricao)}${badgeHoje}
-          </div>
-          <div style="font-size:var(--font-md);color:var(--gray-500);margin-top:2px;">
-            ${r.tipo} • Dia ${r.dia} • ${formaTexto}
-          </div>
+    <div class="rec-card ${r.ativo ? '' : 'pausado'}">
+      <div class="rec-card-top">
+        <div class="rec-card-info">
+          <div class="rec-card-nome">${escapeHtml(r.descricao)}</div>
+          <div class="rec-card-meta">${r.tipo} • Dia ${r.dia} • ${formaTexto}</div>
         </div>
-        <div style="text-align:right;">
-          <div style="font-weight:700;color:${corValor};font-size:var(--font-xl);">${prefixo}${formatMoney(Math.abs(r.valor))}</div>
-          <div style="font-size:var(--font-md);margin-top:2px;color:${corStatus};">${statusTexto}</div>
-          <div style="font-size:var(--font-xs);color:var(--gray-400);margin-top:1px;">${r.ativo ? 'Ativo' : 'Pausado'}</div>
+        <div>
+          <div class="rec-card-valor ${tipo}">${prefixo}${formatMoney(Math.abs(r.valor))}</div>
+          <div class="rec-card-status ${statusClasse}">${statusTexto}</div>
         </div>
       </div>
-      <div class="assinaturas-card-actions">
-        <button onclick="editarRecorrencia('${r.id}')" style="background:var(--primary-light);color:var(--primary);">✏️ Editar</button>
-        <button onclick="toggleStatusRecorrencia('${r.id}')" style="background:${r.ativo ? 'var(--warning-light)' : 'var(--success-light)'};color:${r.ativo ? 'var(--warning)' : 'var(--success)'};">
+      <div class="rec-card-acoes">
+        <button class="rec-card-btn editar"  onclick="editarRecorrencia('${r.id}')">✏️ Editar</button>
+        <button class="rec-card-btn ${r.ativo ? 'pausar' : 'ativar'}" onclick="toggleStatusRecorrencia('${r.id}')">
           ${r.ativo ? '⏸️ Pausar' : '▶️ Ativar'}
         </button>
-        <button onclick="excluirRecorrencia('${r.id}')" style="background:var(--danger-light);color:var(--danger);">🗑️ Excluir</button>
+        <button class="rec-card-btn excluir" onclick="excluirRecorrencia('${r.id}')">🗑️</button>
       </div>
     </div>`;
 }
@@ -431,19 +420,19 @@ function _renderCentralAssinaturas(containerAss) {
     const proximaStr = proxima ? proxima.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—';
 
     containerAss.innerHTML += `
-      <div class="assinaturas-card" style="margin-bottom:var(--margin-sm);">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="assinaturas-card">
+        <div class="rec-assn-row">
           <div>
-            <div style="font-weight:600;">${escapeHtml(a.descricao)}</div>
-            <div style="font-size:var(--font-md);color:var(--gray-500);">Dia ${a.dia} • Próx: ${proximaStr}</div>
+            <div class="rec-assn-nome">${escapeHtml(a.descricao)}</div>
+            <div class="rec-assn-sub">Dia ${a.dia} • Próx: ${proximaStr}</div>
           </div>
-          <div style="text-align:right;">
+          <div class="rec-assn-right">
             <div style="font-weight:700;color:var(--danger);">${formatMoney(Math.abs(a.valor))}</div>
-            <div style="font-size:var(--font-sm);color:var(--gray-400);">${pct.toFixed(0)}%</div>
+            <div class="rec-assn-pct">${pct.toFixed(0)}%</div>
           </div>
         </div>
-        <div style="height:4px;background:var(--gray-100);border-radius:2px;margin-top:var(--margin-sm);">
-          <div style="width:${pct}%;height:100%;background:var(--danger);border-radius:2px;"></div>
+        <div class="rec-assn-barra-bg">
+          <div class="rec-assn-barra-fill" style="width:${pct}%;"></div>
         </div>
       </div>`;
   });
